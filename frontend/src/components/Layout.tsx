@@ -7,6 +7,7 @@ const links = [
   { to: "/", label: "Dashboard", num: "01" },
   { to: "/predict", label: "Predict", num: "02" },
   { to: "/graph", label: "Graph", num: "03" },
+  { to: "/evaluate", label: "Evaluate", num: "04" },
 ];
 
 export function Layout() {

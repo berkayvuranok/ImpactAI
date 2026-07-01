@@ -71,6 +71,10 @@ class Settings(BaseSettings):
     xai_enabled: bool = True
     xai_use_shap_library: bool = False
 
+    # Evaluation
+    evaluation_storage_path: str = "/data/evaluations"
+    evaluation_benchmark_path: str = "data/benchmarks"
+
     # Git
     git_storage_path: str = "/data/repos"
     graph_storage_path: str = "/data/graphs"

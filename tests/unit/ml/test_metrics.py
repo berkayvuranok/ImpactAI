@@ -15,3 +15,15 @@ def test_precision_at_k():
     ranked = [("a.py", 0.9), ("b.py", 0.7), ("c.py", 0.2)]
     score = precision_at_k(ranked, {"a.py", "c.py"}, k=2)
     assert score == 0.5
+
+
+def test_compute_metrics_includes_ranking():
+    preds = [{
+        "risk_score": 50.0,
+        "regression_probability": 0.8,
+        "ranked_files": [("a.py", 0.9), ("b.py", 0.1)],
+    }]
+    labels = [{"risk_score": 45.0, "is_regression": 1.0, "affected_files": ["a.py"]}]
+    metrics = compute_metrics(preds, labels, k=1)
+    assert metrics["precision_at_k"] == 1.0
+    assert metrics["mrr"] == 1.0

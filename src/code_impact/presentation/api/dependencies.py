@@ -7,7 +7,7 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from code_impact.application.services.embedding_index_service import EmbeddingIndexService
+from code_impact.application.services.benchmark_evaluation_service import BenchmarkEvaluationService
 from code_impact.application.services.graph_build_service import GraphBuildService
 from code_impact.application.services.prediction_pipeline_service import PredictionPipelineService
 from code_impact.application.services.repository_sync_service import RepositorySyncService
@@ -33,6 +33,12 @@ from code_impact.application.use_cases.prediction import (
     RunPredictionPipelineUseCase,
 )
 from code_impact.application.use_cases.embedding import IndexEmbeddingsUseCase, SearchSimilarUseCase
+from code_impact.application.use_cases.evaluation import (
+    GetEvaluationReportUseCase,
+    GetMetricTargetsUseCase,
+    ListEvaluationReportsUseCase,
+    RunBenchmarkEvaluationUseCase,
+)
 from code_impact.application.use_cases.graph import (
     BuildGraphUseCase,
     GetGraphUseCase,
@@ -71,6 +77,7 @@ from code_impact.infrastructure.search.historical_search_service import Historic
 from code_impact.infrastructure.llm.factory import build_explanation_generator
 from code_impact.ml.risk.ensemble_fusion import EnsembleFusionService
 from code_impact.ml.xai import XAIService
+from code_impact.ml.evaluation.report_store import EvaluationReportStore
 
 # System user for bootstrap and auth-disabled mode
 SYSTEM_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
@@ -296,6 +303,37 @@ def get_get_prediction_xai_use_case(
     session: AsyncSession = Depends(get_session),
 ) -> GetPredictionXAIUseCase:
     return GetPredictionXAIUseCase(SqlAlchemyPredictionRepository(session))
+
+
+def get_benchmark_evaluation_service(
+    settings: Settings = Depends(get_settings),
+) -> BenchmarkEvaluationService:
+    return BenchmarkEvaluationService(
+        EvaluationReportStore(settings.evaluation_storage_path),
+        benchmark_dir=settings.evaluation_benchmark_path,
+    )
+
+
+def get_run_benchmark_evaluation_use_case(
+    service: BenchmarkEvaluationService = Depends(get_benchmark_evaluation_service),
+) -> RunBenchmarkEvaluationUseCase:
+    return RunBenchmarkEvaluationUseCase(service)
+
+
+def get_get_evaluation_report_use_case(
+    service: BenchmarkEvaluationService = Depends(get_benchmark_evaluation_service),
+) -> GetEvaluationReportUseCase:
+    return GetEvaluationReportUseCase(service)
+
+
+def get_list_evaluation_reports_use_case(
+    service: BenchmarkEvaluationService = Depends(get_benchmark_evaluation_service),
+) -> ListEvaluationReportsUseCase:
+    return ListEvaluationReportsUseCase(service)
+
+
+def get_get_metric_targets_use_case() -> GetMetricTargetsUseCase:
+    return GetMetricTargetsUseCase()
 
 
 def get_run_prediction_pipeline_use_case(

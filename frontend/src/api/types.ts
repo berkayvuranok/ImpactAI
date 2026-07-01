@@ -151,3 +151,36 @@ export interface HealthResponse {
   version: string;
   environment: string;
 }
+
+export interface MetricTargets {
+  precision_at_k: number;
+  recall_at_k: number;
+  f1: number;
+  roc_auc: number;
+  risk_rmse: number;
+  mrr: number;
+  calibration_ece: number;
+}
+
+export interface SampleEvaluation {
+  sample_id: string;
+  description: string;
+  metrics: Record<string, number>;
+  passed: boolean;
+}
+
+export interface EvaluationReport {
+  id: string;
+  benchmark_name: string;
+  created_at: string;
+  aggregate_metrics: Record<string, number>;
+  targets: Record<string, number>;
+  passed: boolean;
+  sample_results: SampleEvaluation[];
+  metadata: Record<string, unknown>;
+}
+
+export interface EvaluationReportList {
+  items: EvaluationReport[];
+  total: number;
+}

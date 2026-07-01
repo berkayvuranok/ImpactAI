@@ -1,7 +1,10 @@
 import type {
   AuthResponse,
+  EvaluationReport,
+  EvaluationReportList,
   GraphSnapshot,
   HealthResponse,
+  MetricTargets,
   PredictAccepted,
   Prediction,
   PredictionHistory,
@@ -101,6 +104,17 @@ export const api = {
     request<RiskSummary>(`/risk/${repositoryId}`),
 
   getGraph: (repositoryId: string) => request<GraphSnapshot>(`/graph/${repositoryId}`),
+
+  getMetricTargets: () => request<MetricTargets>("/evaluate/targets"),
+
+  runBenchmark: (benchmark_name = "default") =>
+    request<EvaluationReport>("/evaluate/benchmark", {
+      method: "POST",
+      body: JSON.stringify({ benchmark_name }),
+    }),
+
+  listEvaluationReports: (limit = 20) =>
+    request<EvaluationReportList>(`/evaluate/reports?limit=${limit}`),
 
   getSubgraph: (repositoryId: string, files: string[]) =>
     request<GraphSnapshot>(

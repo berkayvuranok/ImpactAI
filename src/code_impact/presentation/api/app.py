@@ -11,7 +11,7 @@ from code_impact.infrastructure.config.logging import setup_logging
 from code_impact.infrastructure.config.settings import Settings, get_settings
 from code_impact.infrastructure.persistence.bootstrap import ensure_system_user
 from code_impact.infrastructure.persistence.database import create_session_factory
-from code_impact.presentation.api.routes import analysis, auth, embeddings, graph, health, predictions, repositories, search, webhooks
+from code_impact.presentation.api.routes import analysis, auth, embeddings, evaluation, graph, health, predictions, repositories, search, webhooks
 from code_impact.presentation.api.exception_handlers import register_exception_handlers
 
 
@@ -63,6 +63,7 @@ def create_app(settings: Settings | None = None, *, skip_bootstrap: bool = False
     app.include_router(auth.router, prefix=prefix, tags=["Auth"])
     app.include_router(repositories.router, prefix=prefix, tags=["Repositories"])
     app.include_router(predictions.router, prefix=prefix, tags=["Predictions"])
+    app.include_router(evaluation.router, prefix=prefix, tags=["Evaluation"])
     app.include_router(analysis.router, prefix=prefix, tags=["Analysis"])
     app.include_router(graph.router, prefix=prefix, tags=["Graph"])
     app.include_router(embeddings.router, prefix=prefix, tags=["Embeddings"])

@@ -276,6 +276,48 @@ class AnalyzeDiffResponse(BaseModel):
     file_changes: list[FileChangeResponse] = []
 
 
+    metadata: dict = {}
+
+
+# ── Evaluation ────────────────────────────────────────────────────────────────
+
+class MetricTargetsResponse(BaseModel):
+    precision_at_k: float
+    recall_at_k: float
+    f1: float
+    roc_auc: float
+    risk_rmse: float
+    mrr: float
+    calibration_ece: float
+
+
+class RunBenchmarkRequest(BaseModel):
+    benchmark_name: str = "default"
+
+
+class SampleEvaluationResponse(BaseModel):
+    sample_id: str
+    description: str
+    metrics: dict[str, float]
+    passed: bool
+
+
+class EvaluationReportResponse(BaseModel):
+    id: UUID
+    benchmark_name: str
+    created_at: datetime
+    aggregate_metrics: dict[str, float]
+    targets: dict[str, float]
+    passed: bool
+    sample_results: list[SampleEvaluationResponse]
+    metadata: dict = {}
+
+
+class EvaluationReportListResponse(BaseModel):
+    items: list[EvaluationReportResponse]
+    total: int
+
+
 # ── Embeddings / Search ───────────────────────────────────────────────────────
 
 class IndexEmbeddingsResponse(BaseModel):
