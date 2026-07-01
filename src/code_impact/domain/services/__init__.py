@@ -1,17 +1,21 @@
 """Domain service interfaces for ML and analysis pipelines."""
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from uuid import UUID
 
-from code_impact.domain.entities import GraphSnapshot, PredictionExplanation
+from code_impact.domain.entities import (
+    GraphSnapshot,
+    PredictionExplanation,
+    ReviewerSuggestion,
+    SimilarCommit,
+)
 from code_impact.domain.value_objects.risk import (
     AffectedFilePrediction,
     ConfidenceScore,
     RegressionProbability,
     RiskScore,
 )
-from code_impact.domain.entities import ReviewerSuggestion, SimilarCommit
 
 
 @dataclass
@@ -34,6 +38,22 @@ class GNNPredictionResult:
     affected_files: list[AffectedFilePrediction]
     node_importance: dict[str, float]
     edge_importance: list[tuple[str, str, float]]
+
+
+@dataclass
+class ExplanationContext:
+    """All ML outputs passed to the explanation layer — LLM must not alter these."""
+
+    diff_result: DiffAnalysisResult
+    gnn_result: GNNPredictionResult
+    fused_risk_score: RiskScore
+    fused_regression_probability: RegressionProbability
+    fused_confidence_score: ConfidenceScore
+    affected_files: list[AffectedFilePrediction]
+    similar_commits: list[SimilarCommit]
+    similar_bugs: list[dict] = field(default_factory=list)
+    suggested_reviewers: list[ReviewerSuggestion] = field(default_factory=list)
+    fusion_metadata: dict = field(default_factory=dict)
 
 
 class IDiffParser(ABC):
@@ -116,10 +136,4 @@ class IExplanationGenerator(ABC):
     """LLM-based explanation — NOT prediction."""
 
     @abstractmethod
-    async def generate(
-        self,
-        diff_result: DiffAnalysisResult,
-        gnn_result: GNNPredictionResult,
-        similar_commits: list[SimilarCommit],
-        suggested_reviewers: list[ReviewerSuggestion],
-    ) -> PredictionExplanation: ...
+    async def generate(self, context: ExplanationContext) -> PredictionExplanation: ...

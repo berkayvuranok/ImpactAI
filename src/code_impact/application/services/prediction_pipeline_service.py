@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from uuid import UUID, uuid4
 
-from code_impact.domain.entities import GraphSnapshot, Prediction, PredictionExplanation
+from code_impact.domain.entities import GraphSnapshot, Prediction
 from code_impact.domain.exceptions import EntityNotFoundError
 from code_impact.domain.repositories import IGraphRepository, IPredictionRepository
 from code_impact.domain.services import (
     DiffAnalysisResult,
+    ExplanationContext,
     IEmbeddingService,
+    IExplanationGenerator,
     IGNNPredictor,
     IHistoricalSearch,
     IReviewerRecommender,
@@ -20,7 +22,7 @@ from code_impact.ml.risk.ensemble_fusion import EnsembleFusionService
 
 
 class PredictionPipelineService:
-    """Runs GNN + classical ML + historical search + reviewer recommendation."""
+    """Runs GNN + classical ML + historical search + reviewer + LLM explanation."""
 
     def __init__(
         self,
@@ -31,6 +33,7 @@ class PredictionPipelineService:
         historical_search: IHistoricalSearch,
         reviewer_recommender: IReviewerRecommender,
         embedding_service: IEmbeddingService,
+        explanation_generator: IExplanationGenerator,
         classical_classifier: ClassicalRiskClassifier | None = None,
         ensemble: EnsembleFusionService | None = None,
     ) -> None:
@@ -41,6 +44,7 @@ class PredictionPipelineService:
         self._search = historical_search
         self._reviewers = reviewer_recommender
         self._embeddings = embedding_service
+        self._explainer = explanation_generator
         self._classical = classical_classifier or ClassicalRiskClassifier()
         self._ensemble = ensemble or EnsembleFusionService()
 
@@ -81,26 +85,22 @@ class PredictionPipelineService:
                 fused.affected_files,
             )
 
-            explanation = PredictionExplanation(
-                root_cause="Automated pre-LLM summary — full narrative in Step 7",
-                risk_explanation=(
-                    f"Ensemble risk {fused.risk_score.value:.1f}/100 "
-                    f"(GNN={gnn_result.risk_score.value:.1f}, "
-                    f"classical={classical_result.risk_score.value:.1f})"
-                ),
-                affected_files_explanation=(
-                    f"{len(fused.affected_files)} files ranked by break probability"
-                ),
-                reviewer_explanation=(
-                    f"{len(reviewers)} reviewers matched by ownership/expertise"
-                    if reviewers
-                    else "No reviewer profiles configured"
-                ),
-                attention_summary={
-                    "fusion_weights": fused.fusion_weights,
-                    "component_scores": fused.component_scores,
-                    "similar_bug_count": len(similar_bugs),
-                },
+            explanation = await self._explainer.generate(
+                ExplanationContext(
+                    diff_result=diff_result,
+                    gnn_result=gnn_result,
+                    fused_risk_score=fused.risk_score,
+                    fused_regression_probability=fused.regression_probability,
+                    fused_confidence_score=fused.confidence_score,
+                    affected_files=fused.affected_files,
+                    similar_commits=similar_commits,
+                    similar_bugs=similar_bugs,
+                    suggested_reviewers=reviewers,
+                    fusion_metadata={
+                        "fusion_weights": fused.fusion_weights,
+                        "component_scores": fused.component_scores,
+                    },
+                )
             )
 
             prediction.mark_completed(
@@ -116,6 +116,9 @@ class PredictionPipelineService:
                     "component_scores": fused.component_scores,
                     "similar_bugs": similar_bugs,
                     "gnn_node_importance": gnn_result.node_importance,
+                    "explanation_generator": explanation.attention_summary.get(
+                        "generator", "unknown"
+                    ),
                 },
             )
         except Exception as exc:

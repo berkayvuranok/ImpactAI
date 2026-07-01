@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     anthropic_api_key: str = ""
     llm_provider: Literal["openai", "anthropic", "local"] = "openai"
+    llm_backend: Literal["mock", "openai", "anthropic"] = "mock"
     llm_model: str = "gpt-4o-mini"
     llm_max_tokens: int = 2048
 

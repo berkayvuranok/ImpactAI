@@ -18,6 +18,7 @@ from code_impact.application.use_cases.prediction import RunPredictionPipelineUs
 from code_impact.infrastructure.analysis.diff_analysis_service import DiffAnalysisService
 from code_impact.infrastructure.config.settings import Settings
 from code_impact.infrastructure.embeddings.mock_embedding_service import MockEmbeddingService
+from code_impact.infrastructure.llm.template_explanation_generator import TemplateExplanationGenerator
 from code_impact.infrastructure.recommendation.reviewer_recommender import ReviewerRecommender
 from code_impact.infrastructure.search.historical_search_service import HistoricalSearchService
 from code_impact.infrastructure.vector.in_memory_vector_store import InMemoryVectorStore
@@ -128,6 +129,7 @@ def app(test_settings: Settings, memory_repos, fake_dispatcher):
         historical_search=search,
         reviewer_recommender=ReviewerRecommender(memory_repos["reviewer"]),
         embedding_service=embeddings,
+        explanation_generator=TemplateExplanationGenerator(),
     )
     fake_dispatcher.pipeline = RunPredictionPipelineUseCase(pipeline_service)
 
@@ -260,6 +262,8 @@ async def test_predict_and_get_result(client: AsyncClient, memory_repos, fake_di
     data = get_resp.json()
     assert data["status"] == "completed"
     assert data["risk_score"] is not None
+    assert data["explanation"] is not None
+    assert data["explanation"]["root_cause"]
 
 
 @pytest.mark.asyncio

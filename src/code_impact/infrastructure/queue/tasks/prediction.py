@@ -20,6 +20,7 @@ from code_impact.infrastructure.persistence.repositories import (
     SqlAlchemyReviewerProfileRepository,
 )
 from code_impact.infrastructure.queue.celery_app import celery_app
+from code_impact.infrastructure.llm.factory import build_explanation_generator
 from code_impact.infrastructure.recommendation.reviewer_recommender import ReviewerRecommender
 from code_impact.infrastructure.search.historical_search_service import HistoricalSearchService
 from code_impact.infrastructure.vector.qdrant_store import QdrantVectorStore
@@ -60,6 +61,7 @@ def _build_pipeline(session) -> PredictionPipelineService:
         historical_search=search,
         reviewer_recommender=ReviewerRecommender(SqlAlchemyReviewerProfileRepository(session)),
         embedding_service=embeddings,
+        explanation_generator=build_explanation_generator(settings),
         ensemble=ensemble,
     )
 

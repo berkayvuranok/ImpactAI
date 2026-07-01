@@ -56,6 +56,7 @@ from code_impact.infrastructure.persistence.repositories import (
 )
 from code_impact.infrastructure.recommendation.reviewer_recommender import ReviewerRecommender
 from code_impact.infrastructure.search.historical_search_service import HistoricalSearchService
+from code_impact.infrastructure.llm.factory import build_explanation_generator
 from code_impact.ml.risk.ensemble_fusion import EnsembleFusionService
 
 # System user used until auth is implemented (Step 8+)
@@ -237,6 +238,7 @@ def get_prediction_pipeline_service(
         historical_search=historical_search,
         reviewer_recommender=ReviewerRecommender(SqlAlchemyReviewerProfileRepository(session)),
         embedding_service=embedding_service,
+        explanation_generator=build_explanation_generator(settings),
         ensemble=EnsembleFusionService(
             gnn_weight=settings.ensemble_gnn_weight,
             classical_weight=settings.ensemble_classical_weight,

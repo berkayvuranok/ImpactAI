@@ -477,7 +477,7 @@ flowchart LR
     S4["4 ✅ Embeddings + Qdrant"]
     S5["5 ✅ GNN Training"]
     S6["6 ✅ Risk + Reviewers"]
-    S7["7 🔲 LLM Explanation"]
+    S7["7 ✅ LLM Explanation"]
     S8["8 🔲 Full REST API"]
     S9["9 🔲 React Frontend"]
     S10["10 🔲 XAI"]

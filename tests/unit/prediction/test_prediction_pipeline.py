@@ -11,6 +11,7 @@ from code_impact.domain.entities import Repository
 from code_impact.infrastructure.analysis.diff_analysis_service import DiffAnalysisService
 from code_impact.infrastructure.embeddings.mock_embedding_service import MockEmbeddingService
 from code_impact.infrastructure.recommendation.reviewer_recommender import ReviewerRecommender
+from code_impact.infrastructure.llm.template_explanation_generator import TemplateExplanationGenerator
 from code_impact.infrastructure.search.historical_search_service import HistoricalSearchService
 from code_impact.infrastructure.config.settings import Settings
 from code_impact.ml.inference.mock_gnn_predictor import MockGNNPredictor
@@ -74,6 +75,7 @@ async def test_prediction_pipeline_completes():
         historical_search=search,
         reviewer_recommender=ReviewerRecommender(reviewer_repo),
         embedding_service=embeddings,
+        explanation_generator=TemplateExplanationGenerator(),
     )
 
     predict_uc = PredictImpactUseCase(pred_repo, repo_repo)
@@ -90,3 +92,5 @@ async def test_prediction_pipeline_completes():
     assert result.risk_score is not None
     assert result.regression_probability is not None
     assert result.confidence_score is not None
+    assert result.explanation is not None
+    assert result.explanation.root_cause
