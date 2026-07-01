@@ -1,0 +1,33 @@
+groups:
+  - name: code-impact-api
+    rules:
+      - alert: APIHighErrorRate
+        expr: |
+          sum(rate(http_requests_total{job="code-impact-api",status=~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total{job="code-impact-api"}[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API 5xx error rate above 5%"
+          description: "More than 5% of requests to the Code Impact API have returned 5xx responses over the last 5 minutes."
+
+      - alert: APIHighLatency
+        expr: |
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="code-impact-api"}[5m])) by (le)) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API p95 latency above 2s"
+          description: "The 95th percentile request latency has exceeded 2 seconds for 5 minutes."
+
+      - alert: APITargetDown
+        expr: up{job="code-impact-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Code Impact API is unreachable"
+          description: "Prometheus has been unable to scrape the API target for 1 minute."

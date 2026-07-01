@@ -87,6 +87,8 @@ class Settings(BaseSettings):
     # Monitoring
     prometheus_enabled: bool = True
     log_level: str = "INFO"
+    sentry_dsn: str = ""
+    sentry_traces_sample_rate: float = 0.1
 
     # Auth
     auth_enabled: bool = False

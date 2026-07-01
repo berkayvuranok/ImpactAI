@@ -9,6 +9,11 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 from code_impact.infrastructure.config.logging import setup_logging
 from code_impact.infrastructure.config.settings import Settings, get_settings
+from code_impact.infrastructure.observability import (
+    RequestContextMiddleware,
+    SecurityHeadersMiddleware,
+    init_sentry,
+)
 from code_impact.infrastructure.persistence.bootstrap import ensure_system_user
 from code_impact.infrastructure.persistence.database import create_session_factory
 from code_impact.presentation.api.routes import analysis, auth, embeddings, evaluation, graph, health, predictions, repositories, search, webhooks
@@ -19,6 +24,7 @@ from code_impact.presentation.api.exception_handlers import register_exception_h
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     settings: Settings = app.state.settings
     setup_logging(settings)
+    init_sentry(settings)
 
     session_factory = create_session_factory(settings)
     app.state.session_factory = session_factory
@@ -56,6 +62,8 @@ def create_app(settings: Settings | None = None, *, skip_bootstrap: bool = False
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(RequestContextMiddleware)
 
     prefix = settings.api_prefix
     register_exception_handlers(app)

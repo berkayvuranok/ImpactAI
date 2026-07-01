@@ -22,6 +22,7 @@ services:
       dockerfile: docker/Dockerfile
       target: app
     env_file: .env
+    restart: unless-stopped
     ports:
       - "8000:8000"
     volumes:
@@ -55,17 +56,27 @@ services:
       dockerfile: docker/Dockerfile
       target: worker
     env_file: .env
+    restart: unless-stopped
     volumes:
       - ./src:/app/src
       - repo-data:/data/repos
       - graph-data:/data/graphs
       - model-data:/app/models
     depends_on:
-      - api
-      - redis
-      - postgres
+      api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     networks:
       - cip-network
+    healthcheck:
+      test: ["CMD", "celery", "-A", "code_impact.infrastructure.queue.celery_app:celery_app", "inspect", "ping", "-t", "5"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
   # ── PostgreSQL ──────────────────────────────────────────────────────────────
   postgres:
@@ -111,6 +122,11 @@ services:
       - qdrant-data:/qdrant/storage
     networks:
       - cip-network
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/6333'"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
   # ── Prometheus ────────────────────────────────────────────────────────────────
   prometheus:
@@ -119,6 +135,7 @@ services:
       - "9090:9090"
     volumes:
       - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./docker/prometheus/alerts.yml:/etc/prometheus/alerts.yml
       - prometheus-data:/prometheus
     networks:
       - cip-network
@@ -133,9 +150,15 @@ services:
         VITE_AUTH_REQUIRED: "false"
     ports:
       - "3001:80"
+    restart: unless-stopped
     depends_on:
       api:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
@@ -155,6 +178,7 @@ services:
     volumes:
       - grafana-data:/var/lib/grafana
       - ./docker/grafana/provisioning:/etc/grafana/provisioning
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards
     depends_on:
       - prometheus
     networks:

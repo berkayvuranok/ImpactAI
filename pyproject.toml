@@ -55,6 +55,9 @@ dev = [
     "factory-boy>=3.3.0",
     "faker>=33.0.0",
 ]
+monitoring = [
+    "sentry-sdk[fastapi]>=2.17.0",
+]
 
 [tool.ruff]
 target-version = "py311"
