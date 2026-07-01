@@ -5,12 +5,13 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from code_impact.domain.entities import Commit, EmbeddingRecord, GraphSnapshot, Issue, Repository, SyncJob, User
+from code_impact.domain.entities import Commit, EmbeddingRecord, GraphSnapshot, Issue, MLModel, Repository, SyncJob, User
 from code_impact.domain.repositories import (
     ICommitRepository,
     IEmbeddingRepository,
     IGraphRepository,
     IIssueRepository,
+    IModelRepository,
     IRepositoryRepository,
     ISyncJobRepository,
     IUserRepository,
@@ -23,6 +24,7 @@ from code_impact.infrastructure.persistence.models import (
     GraphNodeModel,
     GraphSnapshotModel,
     IssueModel,
+    MLModelModel,
     RepositoryModel,
     SyncJobModel,
     UserModel,
@@ -275,3 +277,33 @@ class SqlAlchemyEmbeddingRepository(IEmbeddingRepository):
         self._session.add_all(models)
         await self._session.flush()
         return [mappers.embedding_to_domain(m) for m in models]
+
+
+class SqlAlchemyModelRepository(IModelRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get_active(self, name: str) -> MLModel | None:
+        result = await self._session.execute(
+            select(MLModelModel).where(MLModelModel.name == name, MLModelModel.is_active.is_(True))
+        )
+        model = result.scalar_one_or_none()
+        return mappers.ml_model_to_domain(model) if model else None
+
+    async def create(self, model: MLModel) -> MLModel:
+        orm = mappers.ml_model_to_model(model)
+        self._session.add(orm)
+        await self._session.flush()
+        return mappers.ml_model_to_domain(orm)
+
+    async def set_active(self, model_id: UUID) -> None:
+        result = await self._session.execute(select(MLModelModel).where(MLModelModel.id == model_id))
+        target = result.scalar_one_or_none()
+        if not target:
+            return
+        siblings = await self._session.execute(
+            select(MLModelModel).where(MLModelModel.name == target.name)
+        )
+        for model in siblings.scalars():
+            model.is_active = model.id == model_id
+        await self._session.flush()

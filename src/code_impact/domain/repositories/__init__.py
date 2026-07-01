@@ -8,6 +8,7 @@ from code_impact.domain.entities import (
     EmbeddingRecord,
     GraphSnapshot,
     Issue,
+    MLModel,
     Prediction,
     PullRequest,
     Repository,
@@ -121,6 +122,17 @@ class IIssueRepository(ABC):
 
     @abstractmethod
     async def create_batch(self, issues: list[Issue]) -> list[Issue]: ...
+
+
+class IModelRepository(ABC):
+    @abstractmethod
+    async def get_active(self, name: str) -> MLModel | None: ...
+
+    @abstractmethod
+    async def create(self, model: MLModel) -> MLModel: ...
+
+    @abstractmethod
+    async def set_active(self, model_id: UUID) -> None: ...
 
 
 class IEmbeddingRepository(ABC):

@@ -57,8 +57,10 @@ class Settings(BaseSettings):
     # ML
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     embedding_backend: Literal["mock", "sentence_transformer"] = "sentence_transformer"
+    gnn_backend: Literal["mock", "pytorch"] = "mock"
     gnn_model_path: str = "/app/models/gnn/latest.pt"
     risk_model_path: str = "/app/models/risk/latest.pt"
+    model_storage_path: str = "/data/models"
     inference_device: str = "cpu"
 
     # Git

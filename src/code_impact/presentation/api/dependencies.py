@@ -25,6 +25,7 @@ from code_impact.domain.services import IEmbeddingService
 from code_impact.domain.services.git_service import IGitService
 from code_impact.domain.services.vector_store import IVectorStore
 from code_impact.infrastructure.analysis.diff_analysis_service import DiffAnalysisService
+from code_impact.domain.services import IGNNPredictor
 from code_impact.infrastructure.config.settings import Settings
 from code_impact.infrastructure.embeddings.mock_embedding_service import MockEmbeddingService
 from code_impact.infrastructure.embeddings.sentence_transformer_service import (
@@ -195,3 +196,15 @@ def get_search_similar_use_case(
     search_service: HistoricalSearchService = Depends(get_historical_search_service),
 ) -> SearchSimilarUseCase:
     return SearchSimilarUseCase(search_service)
+
+
+def get_gnn_predictor(settings: Settings = Depends(get_settings)) -> IGNNPredictor:
+    from code_impact.ml.inference.gnn_predictor import GNNPredictor
+    from code_impact.ml.inference.mock_gnn_predictor import MockGNNPredictor
+
+    if settings.gnn_backend == "mock":
+        return MockGNNPredictor()
+    predictor = GNNPredictor(settings.gnn_model_path, device=settings.inference_device)
+    if not predictor.is_loaded:
+        return MockGNNPredictor()
+    return predictor

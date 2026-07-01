@@ -1,6 +1,6 @@
 """Map between ORM models and domain entities."""
 
-from code_impact.domain.entities import Commit, EmbeddingRecord, GraphEdge, GraphNode, GraphSnapshot, Issue, Repository, SyncJob, User
+from code_impact.domain.entities import Commit, EmbeddingRecord, GraphEdge, GraphNode, GraphSnapshot, Issue, MLModel, Repository, SyncJob, User
 from code_impact.domain.value_objects.enums import EdgeType, NodeType, RepositoryProvider, SyncJobStatus, UserRole
 from code_impact.infrastructure.persistence.models import (
     CommitModel,
@@ -9,6 +9,7 @@ from code_impact.infrastructure.persistence.models import (
     GraphNodeModel,
     GraphSnapshotModel,
     IssueModel,
+    MLModelModel,
     RepositoryModel,
     SyncJobModel,
     UserModel,
@@ -248,4 +249,30 @@ def embedding_to_model(entity: EmbeddingRecord) -> EmbeddingModel:
         dimension=entity.dimension,
         qdrant_point_id=entity.qdrant_point_id,
         created_at=entity.created_at,
+    )
+
+
+def ml_model_to_domain(model: MLModelModel) -> MLModel:
+    return MLModel(
+        id=model.id,
+        name=model.name,
+        version=model.version,
+        model_type=model.model_type,
+        artifact_path=model.artifact_path,
+        metrics=model.metrics or {},
+        is_active=model.is_active,
+        trained_at=model.trained_at,
+    )
+
+
+def ml_model_to_model(entity: MLModel) -> MLModelModel:
+    return MLModelModel(
+        id=entity.id,
+        name=entity.name,
+        version=entity.version,
+        model_type=entity.model_type,
+        artifact_path=entity.artifact_path,
+        metrics=entity.metrics,
+        is_active=entity.is_active,
+        trained_at=entity.trained_at,
     )

@@ -104,6 +104,18 @@ class Issue:
 
 
 @dataclass
+class MLModel:
+    id: UUID
+    name: str
+    version: str
+    model_type: str
+    artifact_path: str
+    metrics: dict = field(default_factory=dict)
+    is_active: bool = False
+    trained_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass
 class EmbeddingRecord:
     id: UUID
     repository_id: UUID
