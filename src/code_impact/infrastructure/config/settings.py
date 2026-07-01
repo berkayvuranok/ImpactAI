@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     risk_model_path: str = "/app/models/risk/latest.pt"
     model_storage_path: str = "/data/models"
     inference_device: str = "cpu"
+    ensemble_gnn_weight: float = 0.5
+    ensemble_classical_weight: float = 0.3
+    ensemble_historical_weight: float = 0.2
 
     # Git
     git_storage_path: str = "/data/repos"

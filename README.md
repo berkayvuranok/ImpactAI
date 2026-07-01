@@ -356,8 +356,8 @@ flowchart TB
     API --> GR[Graph ✅]
     API --> EM[Embeddings ✅]
     API --> SR[Search ✅]
-    API --> PR[Predict 🔲]
-    API --> PD[Prediction 🔲]
+    API --> PR[Predict ✅]
+    API --> PD[Prediction ✅]
 
     REP --> R1[POST /repository]
     REP --> R2[GET /repository/id]
@@ -390,8 +390,8 @@ flowchart TB
     style E1 fill:#9f9
     style S1 fill:#9f9
     style S2 fill:#9f9
-    style P1 fill:#fdd
-    style P2 fill:#fdd
+    style P1 fill:#9f9
+    style P2 fill:#9f9
 ```
 
 ### Tech Stack
@@ -476,7 +476,7 @@ flowchart LR
     S3["3 ✅ Dependency Graph"]
     S4["4 ✅ Embeddings + Qdrant"]
     S5["5 ✅ GNN Training"]
-    S6["6 🔲 Risk + Reviewers"]
+    S6["6 ✅ Risk + Reviewers"]
     S7["7 🔲 LLM Explanation"]
     S8["8 🔲 Full REST API"]
     S9["9 🔲 React Frontend"]

@@ -9,11 +9,19 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from code_impact.application.services.embedding_index_service import EmbeddingIndexService
 from code_impact.application.services.graph_build_service import GraphBuildService
 from code_impact.application.services.repository_sync_service import RepositorySyncService
+from code_impact.application.services.prediction_pipeline_service import PredictionPipelineService
 from code_impact.application.use_cases import (
     AnalyzeDiffUseCase,
     CreateRepositoryUseCase,
+    GetPredictionUseCase,
     GetRepositoryUseCase,
+    PredictImpactUseCase,
     SyncRepositoryUseCase,
+)
+from code_impact.application.use_cases.prediction import (
+    GetPredictionHistoryUseCase,
+    GetRiskSummaryUseCase,
+    RunPredictionPipelineUseCase,
 )
 from code_impact.application.use_cases.embedding import IndexEmbeddingsUseCase, SearchSimilarUseCase
 from code_impact.application.use_cases.graph import (
@@ -40,11 +48,15 @@ from code_impact.infrastructure.persistence.repositories import (
     SqlAlchemyEmbeddingRepository,
     SqlAlchemyGraphRepository,
     SqlAlchemyIssueRepository,
+    SqlAlchemyPredictionRepository,
     SqlAlchemyRepositoryRepository,
+    SqlAlchemyReviewerProfileRepository,
     SqlAlchemySyncJobRepository,
     SqlAlchemyUserRepository,
 )
+from code_impact.infrastructure.recommendation.reviewer_recommender import ReviewerRecommender
 from code_impact.infrastructure.search.historical_search_service import HistoricalSearchService
+from code_impact.ml.risk.ensemble_fusion import EnsembleFusionService
 
 # System user used until auth is implemented (Step 8+)
 SYSTEM_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
@@ -208,3 +220,59 @@ def get_gnn_predictor(settings: Settings = Depends(get_settings)) -> IGNNPredict
     if not predictor.is_loaded:
         return MockGNNPredictor()
     return predictor
+
+
+def get_prediction_pipeline_service(
+    session: AsyncSession = Depends(get_session),
+    gnn_predictor: IGNNPredictor = Depends(get_gnn_predictor),
+    historical_search: HistoricalSearchService = Depends(get_historical_search_service),
+    embedding_service: IEmbeddingService = Depends(get_embedding_service),
+    settings: Settings = Depends(get_settings),
+) -> PredictionPipelineService:
+    return PredictionPipelineService(
+        prediction_repo=SqlAlchemyPredictionRepository(session),
+        graph_repo=SqlAlchemyGraphRepository(session),
+        diff_service=DiffAnalysisService(),
+        gnn_predictor=gnn_predictor,
+        historical_search=historical_search,
+        reviewer_recommender=ReviewerRecommender(SqlAlchemyReviewerProfileRepository(session)),
+        embedding_service=embedding_service,
+        ensemble=EnsembleFusionService(
+            gnn_weight=settings.ensemble_gnn_weight,
+            classical_weight=settings.ensemble_classical_weight,
+            historical_weight=settings.ensemble_historical_weight,
+        ),
+    )
+
+
+def get_predict_impact_use_case(
+    session: AsyncSession = Depends(get_session),
+) -> PredictImpactUseCase:
+    return PredictImpactUseCase(
+        SqlAlchemyPredictionRepository(session),
+        SqlAlchemyRepositoryRepository(session),
+    )
+
+
+def get_get_prediction_use_case(
+    session: AsyncSession = Depends(get_session),
+) -> GetPredictionUseCase:
+    return GetPredictionUseCase(SqlAlchemyPredictionRepository(session))
+
+
+def get_get_prediction_history_use_case(
+    session: AsyncSession = Depends(get_session),
+) -> GetPredictionHistoryUseCase:
+    return GetPredictionHistoryUseCase(SqlAlchemyPredictionRepository(session))
+
+
+def get_get_risk_summary_use_case(
+    session: AsyncSession = Depends(get_session),
+) -> GetRiskSummaryUseCase:
+    return GetRiskSummaryUseCase(SqlAlchemyPredictionRepository(session))
+
+
+def get_run_prediction_pipeline_use_case(
+    pipeline: PredictionPipelineService = Depends(get_prediction_pipeline_service),
+) -> RunPredictionPipelineUseCase:
+    return RunPredictionPipelineUseCase(pipeline)

@@ -12,6 +12,7 @@ from code_impact.domain.entities import (
     Prediction,
     PullRequest,
     Repository,
+    ReviewerProfile,
     SyncJob,
     User,
 )
@@ -89,6 +90,9 @@ class IPredictionRepository(ABC):
     @abstractmethod
     async def update(self, prediction: Prediction) -> Prediction: ...
 
+    @abstractmethod
+    async def count_by_repository(self, repository_id: UUID) -> int: ...
+
 
 class IGraphRepository(ABC):
     @abstractmethod
@@ -122,6 +126,14 @@ class IIssueRepository(ABC):
 
     @abstractmethod
     async def create_batch(self, issues: list[Issue]) -> list[Issue]: ...
+
+
+class IReviewerProfileRepository(ABC):
+    @abstractmethod
+    async def list_by_repository(self, repository_id: UUID) -> list[ReviewerProfile]: ...
+
+    @abstractmethod
+    async def create_batch(self, profiles: list[ReviewerProfile]) -> list[ReviewerProfile]: ...
 
 
 class IModelRepository(ABC):

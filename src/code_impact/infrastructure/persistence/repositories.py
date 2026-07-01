@@ -2,20 +2,24 @@
 
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from code_impact.domain.entities import Commit, EmbeddingRecord, GraphSnapshot, Issue, MLModel, Repository, SyncJob, User
+from code_impact.domain.entities import Commit, EmbeddingRecord, GraphSnapshot, Issue, MLModel, Prediction, Repository, ReviewerProfile, SyncJob, User
 from code_impact.domain.repositories import (
     ICommitRepository,
     IEmbeddingRepository,
     IGraphRepository,
     IIssueRepository,
     IModelRepository,
+    IPredictionRepository,
     IRepositoryRepository,
+    IReviewerProfileRepository,
     ISyncJobRepository,
     IUserRepository,
 )
+from code_impact.domain.value_objects.enums import PredictionStatus
 from code_impact.infrastructure.persistence import mappers
 from code_impact.infrastructure.persistence.models import (
     CommitModel,
@@ -25,9 +29,13 @@ from code_impact.infrastructure.persistence.models import (
     GraphSnapshotModel,
     IssueModel,
     MLModelModel,
+    PredictionExplanationModel,
+    PredictionModel,
     RepositoryModel,
+    ReviewerProfileModel,
     SyncJobModel,
     UserModel,
+    AffectedFilePredictionModel,
 )
 
 
@@ -307,3 +315,150 @@ class SqlAlchemyModelRepository(IModelRepository):
         for model in siblings.scalars():
             model.is_active = model.id == model_id
         await self._session.flush()
+
+
+class SqlAlchemyPredictionRepository(IPredictionRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get_by_id(self, prediction_id: UUID) -> Prediction | None:
+        result = await self._session.execute(
+            select(PredictionModel)
+            .where(PredictionModel.id == prediction_id)
+            .options(
+                selectinload(PredictionModel.affected_files),
+                selectinload(PredictionModel.explanation),
+            )
+        )
+        model = result.scalar_one_or_none()
+        return mappers.prediction_to_domain(model) if model else None
+
+    async def list_by_repository(
+        self,
+        repository_id: UUID,
+        status: PredictionStatus | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[Prediction]:
+        query = (
+            select(PredictionModel)
+            .where(PredictionModel.repository_id == repository_id)
+            .options(
+                selectinload(PredictionModel.affected_files),
+                selectinload(PredictionModel.explanation),
+            )
+            .order_by(PredictionModel.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        if status:
+            query = query.where(PredictionModel.status == status.value)
+        result = await self._session.execute(query)
+        return [mappers.prediction_to_domain(m) for m in result.scalars()]
+
+    async def create(self, prediction: Prediction) -> Prediction:
+        model = mappers.prediction_to_model(prediction)
+        self._session.add(model)
+        await self._session.flush()
+        return mappers.prediction_to_domain(model)
+
+    async def update(self, prediction: Prediction) -> Prediction:
+        model = await self._session.get(
+            PredictionModel,
+            prediction.id,
+            options=[
+                selectinload(PredictionModel.affected_files),
+                selectinload(PredictionModel.explanation),
+            ],
+        )
+        if not model:
+            model = mappers.prediction_to_model(prediction)
+            self._session.add(model)
+            await self._session.flush()
+            return prediction
+
+        model.status = prediction.status.value
+        model.risk_score = prediction.risk_score.value if prediction.risk_score else None
+        model.regression_probability = (
+            prediction.regression_probability.value if prediction.regression_probability else None
+        )
+        model.confidence_score = (
+            prediction.confidence_score.value if prediction.confidence_score else None
+        )
+        model.error_message = prediction.error_message
+        model.completed_at = prediction.completed_at
+        model.output_payload = mappers.prediction_to_model(prediction).output_payload
+
+        model.affected_files.clear()
+        for item in prediction.affected_files:
+            model.affected_files.append(
+                AffectedFilePredictionModel(
+                    file_path=item.file_path,
+                    break_probability=item.break_probability,
+                    node_importance=item.node_importance,
+                    rank=item.rank,
+                    explanation=item.explanation,
+                )
+            )
+
+        if prediction.explanation:
+            if model.explanation:
+                model.explanation.root_cause = prediction.explanation.root_cause
+                model.explanation.risk_explanation = prediction.explanation.risk_explanation
+                model.explanation.affected_files_explanation = (
+                    prediction.explanation.affected_files_explanation
+                )
+                model.explanation.reviewer_explanation = prediction.explanation.reviewer_explanation
+                model.explanation.attention_summary = prediction.explanation.attention_summary
+            else:
+                model.explanation = PredictionExplanationModel(
+                    prediction_id=prediction.id,
+                    root_cause=prediction.explanation.root_cause,
+                    risk_explanation=prediction.explanation.risk_explanation,
+                    affected_files_explanation=prediction.explanation.affected_files_explanation,
+                    reviewer_explanation=prediction.explanation.reviewer_explanation,
+                    attention_summary=prediction.explanation.attention_summary,
+                )
+
+        await self._session.flush()
+        return mappers.prediction_to_domain(model)
+
+    async def count_by_repository(self, repository_id: UUID) -> int:
+        result = await self._session.execute(
+            select(func.count())
+            .select_from(PredictionModel)
+            .where(PredictionModel.repository_id == repository_id)
+        )
+        return int(result.scalar_one())
+
+
+class SqlAlchemyReviewerProfileRepository(IReviewerProfileRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def list_by_repository(self, repository_id: UUID) -> list[ReviewerProfile]:
+        result = await self._session.execute(
+            select(ReviewerProfileModel, UserModel.username)
+            .join(UserModel, UserModel.id == ReviewerProfileModel.user_id)
+            .where(ReviewerProfileModel.repository_id == repository_id)
+        )
+        return [
+            mappers.reviewer_profile_to_domain(profile, username=username)
+            for profile, username in result.all()
+        ]
+
+    async def create_batch(self, profiles: list[ReviewerProfile]) -> list[ReviewerProfile]:
+        models = [
+            ReviewerProfileModel(
+                id=p.id,
+                user_id=p.user_id,
+                repository_id=p.repository_id,
+                expertise_area=p.expertise_area,
+                ownership_score=p.ownership_score,
+                file_ownership_map=p.file_ownership_map,
+            )
+            for p in profiles
+        ]
+        self._session.add_all(models)
+        await self._session.flush()
+        return profiles

@@ -25,6 +25,8 @@ class ITaskDispatcher(Protocol):
         include_issues: bool = True,
     ) -> None: ...
 
+    def dispatch_run_prediction(self, prediction_id: str) -> None: ...
+
 
 class CeleryTaskDispatcher:
     def dispatch_sync_repository(
@@ -52,6 +54,11 @@ class CeleryTaskDispatcher:
         from code_impact.infrastructure.queue.tasks.embedding import index_embeddings_task
 
         index_embeddings_task.delay(repository_id, reindex, include_issues)
+
+    def dispatch_run_prediction(self, prediction_id: str) -> None:
+        from code_impact.infrastructure.queue.tasks.prediction import run_prediction_pipeline_task
+
+        run_prediction_pipeline_task.delay(prediction_id)
 
 
 class InlineTaskDispatcher:
@@ -82,3 +89,8 @@ class InlineTaskDispatcher:
         from code_impact.infrastructure.queue.tasks.embedding import index_embeddings_task
 
         index_embeddings_task.apply(args=[repository_id, reindex, include_issues])
+
+    def dispatch_run_prediction(self, prediction_id: str) -> None:
+        from code_impact.infrastructure.queue.tasks.prediction import run_prediction_pipeline_task
+
+        run_prediction_pipeline_task.apply(args=[prediction_id])

@@ -1,7 +1,31 @@
 """Map between ORM models and domain entities."""
 
-from code_impact.domain.entities import Commit, EmbeddingRecord, GraphEdge, GraphNode, GraphSnapshot, Issue, MLModel, Repository, SyncJob, User
-from code_impact.domain.value_objects.enums import EdgeType, NodeType, RepositoryProvider, SyncJobStatus, UserRole
+from uuid import UUID
+
+from code_impact.domain.entities import (
+    Commit,
+    EmbeddingRecord,
+    GraphEdge,
+    GraphNode,
+    GraphSnapshot,
+    Issue,
+    MLModel,
+    Prediction,
+    PredictionExplanation,
+    Repository,
+    ReviewerProfile,
+    ReviewerSuggestion,
+    SimilarCommit,
+    SyncJob,
+    User,
+)
+from code_impact.domain.value_objects.enums import EdgeType, NodeType, PredictionStatus, RepositoryProvider, SyncJobStatus, UserRole
+from code_impact.domain.value_objects.risk import (
+    AffectedFilePrediction,
+    ConfidenceScore,
+    RegressionProbability,
+    RiskScore,
+)
 from code_impact.infrastructure.persistence.models import (
     CommitModel,
     EmbeddingModel,
@@ -10,9 +34,13 @@ from code_impact.infrastructure.persistence.models import (
     GraphSnapshotModel,
     IssueModel,
     MLModelModel,
+    PredictionExplanationModel,
+    PredictionModel,
     RepositoryModel,
+    ReviewerProfileModel,
     SyncJobModel,
     UserModel,
+    AffectedFilePredictionModel,
 )
 
 
@@ -275,4 +303,128 @@ def ml_model_to_model(entity: MLModel) -> MLModelModel:
         metrics=entity.metrics,
         is_active=entity.is_active,
         trained_at=entity.trained_at,
+    )
+
+
+def prediction_to_domain(model: PredictionModel) -> Prediction:
+    output = model.output_payload or {}
+    similar = [
+        SimilarCommit(
+            commit_sha=item.get("commit_sha", ""),
+            similarity_score=float(item.get("similarity_score", 0.0)),
+            message=item.get("message", ""),
+            is_regression=bool(item.get("is_regression", False)),
+            linked_issue_ids=item.get("linked_issue_ids", []),
+        )
+        for item in output.get("similar_commits", [])
+    ]
+    reviewers = [
+        ReviewerSuggestion(
+            user_id=UUID(str(item["user_id"])),
+            username=item.get("username", ""),
+            score=float(item.get("score", 0.0)),
+            expertise_areas=item.get("expertise_areas", []),
+            ownership_files=item.get("ownership_files", []),
+            rationale=item.get("rationale"),
+        )
+        for item in output.get("suggested_reviewers", [])
+    ]
+    explanation = None
+    if model.explanation:
+        explanation = PredictionExplanation(
+            root_cause=model.explanation.root_cause,
+            risk_explanation=model.explanation.risk_explanation,
+            affected_files_explanation=model.explanation.affected_files_explanation,
+            reviewer_explanation=model.explanation.reviewer_explanation,
+            attention_summary=model.explanation.attention_summary or {},
+        )
+    return Prediction(
+        id=model.id,
+        repository_id=model.repository_id,
+        created_by=model.created_by,
+        status=PredictionStatus(model.status),
+        input_payload=model.input_payload or {},
+        pull_request_id=model.pull_request_id,
+        model_id=model.model_id,
+        risk_score=RiskScore(model.risk_score) if model.risk_score is not None else None,
+        regression_probability=(
+            RegressionProbability(model.regression_probability)
+            if model.regression_probability is not None
+            else None
+        ),
+        confidence_score=(
+            ConfidenceScore(model.confidence_score) if model.confidence_score is not None else None
+        ),
+        affected_files=[
+            AffectedFilePrediction(
+                file_path=f.file_path,
+                break_probability=f.break_probability,
+                node_importance=f.node_importance,
+                rank=f.rank,
+                explanation=f.explanation,
+            )
+            for f in model.affected_files
+        ],
+        similar_commits=similar,
+        suggested_reviewers=reviewers,
+        explanation=explanation,
+        output_payload=output,
+        error_message=model.error_message,
+        created_at=model.created_at,
+        completed_at=model.completed_at,
+    )
+
+
+def prediction_to_model(entity: Prediction) -> PredictionModel:
+    output = dict(entity.output_payload)
+    output["similar_commits"] = [
+        {
+            "commit_sha": c.commit_sha,
+            "similarity_score": c.similarity_score,
+            "message": c.message,
+            "is_regression": c.is_regression,
+            "linked_issue_ids": c.linked_issue_ids,
+        }
+        for c in entity.similar_commits
+    ]
+    output["suggested_reviewers"] = [
+        {
+            "user_id": str(r.user_id),
+            "username": r.username,
+            "score": r.score,
+            "expertise_areas": r.expertise_areas,
+            "ownership_files": r.ownership_files,
+            "rationale": r.rationale,
+        }
+        for r in entity.suggested_reviewers
+    ]
+    return PredictionModel(
+        id=entity.id,
+        repository_id=entity.repository_id,
+        pull_request_id=entity.pull_request_id,
+        created_by=entity.created_by,
+        model_id=entity.model_id,
+        status=entity.status.value,
+        risk_score=entity.risk_score.value if entity.risk_score else None,
+        regression_probability=(
+            entity.regression_probability.value if entity.regression_probability else None
+        ),
+        confidence_score=entity.confidence_score.value if entity.confidence_score else None,
+        input_payload=entity.input_payload,
+        output_payload=output,
+        error_message=entity.error_message,
+        created_at=entity.created_at,
+        completed_at=entity.completed_at,
+    )
+
+
+def reviewer_profile_to_domain(model: ReviewerProfileModel, username: str = "") -> ReviewerProfile:
+    return ReviewerProfile(
+        id=model.id,
+        user_id=model.user_id,
+        repository_id=model.repository_id,
+        username=username,
+        expertise_area=model.expertise_area,
+        ownership_score=model.ownership_score,
+        file_ownership_map=model.file_ownership_map or {},
     )

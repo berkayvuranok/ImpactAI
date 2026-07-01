@@ -1,24 +1,41 @@
 """API integration tests with in-memory repositories."""
 
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from code_impact.application.services.prediction_pipeline_service import PredictionPipelineService
 from code_impact.application.use_cases import (
     AnalyzeDiffUseCase,
     CreateRepositoryUseCase,
+    GetPredictionUseCase,
     GetRepositoryUseCase,
+    PredictImpactUseCase,
     SyncRepositoryUseCase,
 )
+from code_impact.application.use_cases.prediction import RunPredictionPipelineUseCase
+from code_impact.infrastructure.analysis.diff_analysis_service import DiffAnalysisService
 from code_impact.infrastructure.config.settings import Settings
+from code_impact.infrastructure.embeddings.mock_embedding_service import MockEmbeddingService
+from code_impact.infrastructure.recommendation.reviewer_recommender import ReviewerRecommender
+from code_impact.infrastructure.search.historical_search_service import HistoricalSearchService
+from code_impact.infrastructure.vector.in_memory_vector_store import InMemoryVectorStore
+from code_impact.ml.inference.mock_gnn_predictor import MockGNNPredictor
 from code_impact.presentation.api.app import create_app
 from code_impact.presentation.api.dependencies import (
     get_analyze_diff_use_case,
     get_create_repository_use_case,
+    get_get_prediction_use_case,
     get_get_repository_use_case,
+    get_predict_impact_use_case,
     get_sync_repository_use_case,
     get_task_dispatcher,
+)
+from support.in_memory_graph_repository import InMemoryGraphRepository
+from support.in_memory_prediction_repositories import (
+    InMemoryPredictionRepository,
+    InMemoryReviewerProfileRepository,
 )
 from support.in_memory_repositories import (
     InMemoryRepositoryRepository,
@@ -41,6 +58,8 @@ diff --git a/src/main.py b/src/main.py
 class FakeTaskDispatcher:
     def __init__(self) -> None:
         self.calls: list[tuple] = []
+        self.prediction_calls: list[str] = []
+        self.pipeline: RunPredictionPipelineUseCase | None = None
 
     def dispatch_sync_repository(
         self,
@@ -50,6 +69,20 @@ class FakeTaskDispatcher:
         since_sha: str | None,
     ) -> None:
         self.calls.append((repository_id, job_id, full_sync, since_sha))
+
+    def dispatch_build_graph(self, repository_id: str, commit_sha: str) -> None:
+        self.calls.append(("build_graph", repository_id, commit_sha))
+
+    def dispatch_index_embeddings(
+        self,
+        repository_id: str,
+        reindex: bool = False,
+        include_issues: bool = True,
+    ) -> None:
+        self.calls.append(("index_embeddings", repository_id, reindex, include_issues))
+
+    def dispatch_run_prediction(self, prediction_id: str) -> None:
+        self.prediction_calls.append(prediction_id)
 
 
 @pytest.fixture
@@ -70,6 +103,9 @@ def memory_repos():
     return {
         "repository": InMemoryRepositoryRepository(),
         "sync_job": InMemorySyncJobRepository(),
+        "prediction": InMemoryPredictionRepository(),
+        "graph": InMemoryGraphRepository(),
+        "reviewer": InMemoryReviewerProfileRepository(),
     }
 
 
@@ -82,6 +118,19 @@ def fake_dispatcher():
 def app(test_settings: Settings, memory_repos, fake_dispatcher):
     application = create_app(test_settings, skip_bootstrap=True)
 
+    embeddings = MockEmbeddingService()
+    search = HistoricalSearchService(InMemoryVectorStore(), embeddings, test_settings)
+    pipeline_service = PredictionPipelineService(
+        prediction_repo=memory_repos["prediction"],
+        graph_repo=memory_repos["graph"],
+        diff_service=DiffAnalysisService(),
+        gnn_predictor=MockGNNPredictor(),
+        historical_search=search,
+        reviewer_recommender=ReviewerRecommender(memory_repos["reviewer"]),
+        embedding_service=embeddings,
+    )
+    fake_dispatcher.pipeline = RunPredictionPipelineUseCase(pipeline_service)
+
     application.dependency_overrides[get_create_repository_use_case] = (
         lambda: CreateRepositoryUseCase(memory_repos["repository"])
     )
@@ -92,6 +141,13 @@ def app(test_settings: Settings, memory_repos, fake_dispatcher):
         lambda: SyncRepositoryUseCase(memory_repos["repository"], memory_repos["sync_job"])
     )
     application.dependency_overrides[get_analyze_diff_use_case] = lambda: AnalyzeDiffUseCase()
+    application.dependency_overrides[get_predict_impact_use_case] = lambda: PredictImpactUseCase(
+        memory_repos["prediction"],
+        memory_repos["repository"],
+    )
+    application.dependency_overrides[get_get_prediction_use_case] = lambda: GetPredictionUseCase(
+        memory_repos["prediction"]
+    )
     application.dependency_overrides[get_task_dispatcher] = lambda: fake_dispatcher
 
     return application
@@ -179,7 +235,35 @@ async def test_analyze_diff(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_predict_accepted(client: AsyncClient):
+async def test_predict_and_get_result(client: AsyncClient, memory_repos, fake_dispatcher):
+    create_resp = await client.post(
+        "/api/v1/repository",
+        json={
+            "name": "predict-repo",
+            "url": "https://github.com/example/predict-repo",
+        },
+    )
+    repo_id = create_resp.json()["id"]
+
+    predict_resp = await client.post(
+        "/api/v1/predict",
+        json={"repository_id": repo_id, "diff": SAMPLE_DIFF},
+    )
+    assert predict_resp.status_code == 202
+    prediction_id = predict_resp.json()["prediction_id"]
+
+    if fake_dispatcher.pipeline:
+        await fake_dispatcher.pipeline.execute(UUID(prediction_id))
+
+    get_resp = await client.get(f"/api/v1/prediction/{prediction_id}")
+    assert get_resp.status_code == 200
+    data = get_resp.json()
+    assert data["status"] == "completed"
+    assert data["risk_score"] is not None
+
+
+@pytest.mark.asyncio
+async def test_predict_unknown_repository_returns_404(client: AsyncClient):
     response = await client.post(
         "/api/v1/predict",
         json={
@@ -187,4 +271,4 @@ async def test_predict_accepted(client: AsyncClient):
             "diff": "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py",
         },
     )
-    assert response.status_code == 202
+    assert response.status_code == 404

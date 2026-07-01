@@ -177,6 +177,17 @@ class GraphSnapshot:
 
 
 @dataclass
+class ReviewerProfile:
+    id: UUID
+    user_id: UUID
+    repository_id: UUID
+    username: str
+    expertise_area: str = ""
+    ownership_score: float = 0.0
+    file_ownership_map: dict[str, float] = field(default_factory=dict)
+
+
+@dataclass
 class SimilarCommit:
     commit_sha: str
     similarity_score: float
