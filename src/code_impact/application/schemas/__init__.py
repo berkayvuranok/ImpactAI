@@ -43,11 +43,6 @@ class AuthResponse(BaseModel):
     user: UserResponse
 
 
-class RepositoryListResponse(BaseModel):
-    items: list[RepositoryResponse]
-    total: int
-
-
 class WebhookAcceptedResponse(BaseModel):
     prediction_id: UUID | None = None
     status: str = "queued"
@@ -73,6 +68,11 @@ class RepositoryResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class RepositoryListResponse(BaseModel):
+    items: list[RepositoryResponse]
+    total: int
 
 
 class SyncRepositoryRequest(BaseModel):

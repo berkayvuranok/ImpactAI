@@ -479,7 +479,7 @@ flowchart LR
     S6["6 ✅ Risk + Reviewers"]
     S7["7 ✅ LLM Explanation"]
     S8["8 ✅ Full REST API"]
-    S9["9 🔲 React Frontend"]
+    S9["9 ✅ React Frontend"]
     S10["10 🔲 XAI"]
     S11["11 🔲 Evaluation"]
     S12["12 🔲 Production"]
@@ -491,10 +491,10 @@ flowchart LR
     style S3 fill:#9f9
     style S4 fill:#9f9
     style S5 fill:#9f9
-    style S6 fill:#fdd
-    style S7 fill:#fdd
-    style S8 fill:#fdd
-    style S9 fill:#fdd
+    style S6 fill:#9f9
+    style S7 fill:#9f9
+    style S8 fill:#9f9
+    style S9 fill:#9f9
     style S10 fill:#fdd
     style S11 fill:#fdd
     style S12 fill:#fdd
@@ -508,6 +508,7 @@ flowchart LR
 cp .env.example .env
 docker compose up -d
 open http://localhost:8000/api/v1/docs   # API
+open http://localhost:3001               # React UI
 open http://localhost:3000               # Grafana (admin/admin)
 open http://localhost:9090               # Prometheus
 ```
@@ -525,6 +526,10 @@ export REDIS_URL="redis://localhost:6379/0"
 export CELERY_BROKER_URL="redis://localhost:6379/1"
 export CELERY_RESULT_BACKEND="redis://localhost:6379/2"
 uvicorn code_impact.presentation.api.main:app --reload
+
+# Frontend (separate terminal)
+cd frontend && cp .env.example .env && npm install && npm run dev
+# UI at http://localhost:3001
 ```
 
 ## License

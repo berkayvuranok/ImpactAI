@@ -123,6 +123,27 @@ services:
     networks:
       - cip-network
 
+  # ── React Frontend ──────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE: /api/v1
+        VITE_AUTH_REQUIRED: "false"
+    ports:
+      - "3001:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.frontend.priority=1"
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"
+    networks:
+      - cip-network
+
   # ── Grafana ─────────────────────────────────────────────────────────────────
   grafana:
     image: grafana/grafana:11.3.0
