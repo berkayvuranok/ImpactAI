@@ -27,54 +27,57 @@ export function RegisterPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
-      <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/80 p-8 shadow-xl">
-        <p className="font-mono text-xs uppercase tracking-[0.2em] text-brand-400">Create account</p>
-        <h1 className="mt-2 text-2xl font-semibold text-white">Join Code Impact</h1>
-        <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+    <div className="grain flex min-h-screen items-center justify-center bg-ink px-5">
+      <div className="w-full max-w-md">
+        <div className="mb-10 text-center">
+          <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full border border-ink-400 font-heading text-lg font-bold">
+            CI
+          </div>
+          <p className="section-label">Create Account</p>
+          <h1 className="mt-3 font-heading text-3xl font-bold text-ink-900">Join Code Impact</h1>
+        </div>
+
+        <form onSubmit={handleSubmit} className="panel space-y-5 p-8">
           <label className="block">
-            <span className="text-sm text-slate-400">Email</span>
+            <span className="section-label">Email</span>
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-brand-500"
+              className="input-field mt-2"
             />
           </label>
           <label className="block">
-            <span className="text-sm text-slate-400">Username</span>
+            <span className="section-label">Username</span>
             <input
               type="text"
               required
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-brand-500"
+              className="input-field mt-2"
             />
           </label>
           <label className="block">
-            <span className="text-sm text-slate-400">Password</span>
+            <span className="section-label">Password</span>
             <input
               type="password"
               required
               minLength={8}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-brand-500"
+              className="input-field mt-2"
             />
           </label>
-          {error && <p className="text-sm text-red-400">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-lg bg-brand-600 py-2.5 font-medium text-white hover:bg-brand-500 disabled:opacity-50"
-          >
-            {loading ? "Creating…" : "Create account"}
+          {error && <p className="font-mono text-sm text-ink-600">{error}</p>}
+          <button type="submit" disabled={loading} className="btn-primary w-full">
+            {loading ? "Creating…" : "Create account →"}
           </button>
         </form>
-        <p className="mt-6 text-center text-sm text-slate-500">
+
+        <p className="mt-8 text-center font-mono text-xs text-ink-500">
           Already have an account?{" "}
-          <Link to="/login" className="text-brand-400 hover:underline">
+          <Link to="/login" className="text-ink-800 underline underline-offset-4 hover:text-ink-900">
             Sign in
           </Link>
         </p>

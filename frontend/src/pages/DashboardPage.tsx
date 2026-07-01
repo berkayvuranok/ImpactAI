@@ -11,6 +11,29 @@ import {
 } from "recharts";
 import { api } from "../api/client";
 import type { Repository, RiskSummary } from "../api/types";
+import { PageHero } from "../components/ui/PageHero";
+import { ScrollSection } from "../components/ui/ScrollSection";
+import { Slider } from "../components/ui/Slider";
+import { StatGrid } from "../components/ui/StatGrid";
+
+const FEATURES = [
+  {
+    title: "GNN Impact",
+    desc: "Graph neural network propagates change signals through your dependency graph.",
+  },
+  {
+    title: "Risk Fusion",
+    desc: "Ensemble of classical ML + GNN scores for calibrated regression probability.",
+  },
+  {
+    title: "Similarity Search",
+    desc: "Qdrant retrieves historically risky commits similar to your diff.",
+  },
+  {
+    title: "Smart Reviewers",
+    desc: "Ownership and expertise scoring suggests the best reviewers automatically.",
+  },
+];
 
 export function DashboardPage() {
   const [repos, setRepos] = useState<Repository[]>([]);
@@ -18,7 +41,6 @@ export function DashboardPage() {
   const [risk, setRisk] = useState<RiskSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [creating, setCreating] = useState(false);
@@ -28,9 +50,7 @@ export function DashboardPage() {
     try {
       const list = await api.listRepositories();
       setRepos(list.items);
-      if (list.items.length && !selectedId) {
-        setSelectedId(list.items[0].id);
-      }
+      if (list.items.length && !selectedId) setSelectedId(list.items[0].id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load repositories");
     } finally {
@@ -44,10 +64,7 @@ export function DashboardPage() {
 
   useEffect(() => {
     if (!selectedId) return;
-    api
-      .getRiskSummary(selectedId)
-      .then(setRisk)
-      .catch(() => setRisk(null));
+    api.getRiskSummary(selectedId).then(setRisk).catch(() => setRisk(null));
   }, [selectedId]);
 
   const handleCreate = async (event: FormEvent) => {
@@ -77,144 +94,183 @@ export function DashboardPage() {
     await load();
   };
 
+  const stats = risk
+    ? [
+        { label: "Avg Risk", value: risk.average_risk_score.toFixed(1) },
+        { label: "High Risk", value: String(risk.high_risk_predictions) },
+        { label: "Total Runs", value: String(risk.total_predictions) },
+        { label: "Repos", value: String(repos.length) },
+      ]
+    : [
+        { label: "Repos", value: String(repos.length) },
+        { label: "Avg Risk", value: "—" },
+        { label: "High Risk", value: "—" },
+        { label: "Total Runs", value: "—" },
+      ];
+
   return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="text-2xl font-semibold text-white">Dashboard</h2>
-        <p className="mt-1 text-slate-400">Manage repositories and monitor prediction risk.</p>
-      </div>
+    <div>
+      <PageHero
+        eyebrow="Control Center"
+        title="Predict code impact before it ships."
+        description="Monitor repositories, track regression risk, and launch predictions from a single monochrome command deck."
+      >
+        <div className="flex flex-wrap gap-3">
+          <Link to="/predict" className="btn-primary">
+            Run Prediction →
+          </Link>
+          <Link to="/graph" className="btn-ghost">
+            Explore Graph
+          </Link>
+        </div>
+      </PageHero>
 
       {error && (
-        <div className="rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-300">
+        <div className="mb-8 rounded-xl border border-ink-400 bg-ink-100 px-4 py-3 font-mono text-sm text-ink-700">
           {error}
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section className="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
-          <h3 className="font-medium text-white">Add repository</h3>
-          <form onSubmit={handleCreate} className="mt-4 space-y-3">
-            <input
-              placeholder="Name"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
-            />
-            <input
-              placeholder="https://github.com/org/repo"
-              required
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
-            />
-            <button
-              type="submit"
-              disabled={creating}
-              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-500 disabled:opacity-50"
-            >
-              {creating ? "Adding…" : "Add repository"}
-            </button>
-          </form>
-        </section>
+      <ScrollSection delay={0}>
+        <StatGrid items={stats} />
+      </ScrollSection>
 
-        <section className="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
-          <h3 className="font-medium text-white">Risk overview</h3>
-          {risk ? (
-            <div className="mt-4 space-y-4">
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <Stat label="Avg risk" value={risk.average_risk_score.toFixed(1)} />
-                <Stat label="High risk" value={String(risk.high_risk_predictions)} />
-                <Stat label="Total" value={String(risk.total_predictions)} />
-              </div>
-              {risk.trend.length > 0 && (
-                <div className="h-40">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={risk.trend}>
-                      <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-                      <XAxis dataKey="created_at" hide />
-                      <YAxis domain={[0, 100]} stroke="#64748b" fontSize={11} />
-                      <Tooltip
-                        contentStyle={{ background: "#0f172a", border: "1px solid #334155" }}
-                      />
-                      <Line type="monotone" dataKey="risk_score" stroke="#22d3ee" dot={false} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
+      <ScrollSection delay={100}>
+        <Slider title="Your Repositories" subtitle="Slide 01 — Repos" itemWidth="min(88vw, 340px)">
+          {loading ? (
+            <div className="panel flex h-48 items-center justify-center">
+              <span className="font-mono text-sm text-ink-500">Loading…</span>
+            </div>
+          ) : repos.length === 0 ? (
+            <div className="panel flex h-48 flex-col items-center justify-center gap-3 p-8 text-center">
+              <p className="font-heading text-lg text-ink-700">No repositories yet</p>
+              <p className="font-mono text-xs text-ink-500">Add one below to get started</p>
             </div>
           ) : (
-            <p className="mt-4 text-sm text-slate-500">Select a repository with predictions.</p>
-          )}
-        </section>
-      </div>
-
-      <section className="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
-        <h3 className="font-medium text-white">Repositories</h3>
-        {loading ? (
-          <p className="mt-4 text-sm text-slate-500">Loading…</p>
-        ) : repos.length === 0 ? (
-          <p className="mt-4 text-sm text-slate-500">No repositories yet.</p>
-        ) : (
-          <div className="mt-4 divide-y divide-slate-800">
-            {repos.map((repo) => (
-              <div
+            repos.map((repo) => (
+              <article
                 key={repo.id}
-                className={`flex flex-wrap items-center justify-between gap-4 py-4 ${
-                  selectedId === repo.id ? "bg-brand-500/5" : ""
+                className={`panel panel-hover flex h-48 cursor-pointer flex-col justify-between p-6 ${
+                  selectedId === repo.id ? "border-ink-700 ring-1 ring-ink-700" : ""
                 }`}
+                onClick={() => setSelectedId(repo.id)}
+                onKeyDown={(e) => e.key === "Enter" && setSelectedId(repo.id)}
+                role="button"
+                tabIndex={0}
               >
-                <button
-                  type="button"
-                  onClick={() => setSelectedId(repo.id)}
-                  className="text-left"
-                >
-                  <p className="font-medium text-white">{repo.name}</p>
-                  <p className="font-mono text-xs text-slate-500">{repo.url}</p>
-                </button>
-                <div className="flex flex-wrap gap-2">
-                  <Link
-                    to={`/predict?repo=${repo.id}`}
-                    className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-brand-500"
-                  >
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-widest text-ink-500">
+                    {repo.provider}
+                  </p>
+                  <h4 className="mt-2 font-heading text-xl font-semibold text-ink-900">{repo.name}</h4>
+                  <p className="mt-2 truncate font-mono text-[11px] text-ink-500">{repo.url}</p>
+                </div>
+                <div className="flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
+                  <Link to={`/predict?repo=${repo.id}`} className="btn-ghost !px-3 !py-1 !text-[11px]">
                     Predict
                   </Link>
-                  <Link
-                    to={`/graph?repo=${repo.id}`}
-                    className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-brand-500"
-                  >
+                  <Link to={`/graph?repo=${repo.id}`} className="btn-ghost !px-3 !py-1 !text-[11px]">
                     Graph
                   </Link>
                   <button
                     type="button"
                     onClick={() => handleSync(repo.id)}
-                    className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-brand-500"
+                    className="btn-ghost !px-3 !py-1 !text-[11px]"
                   >
                     Sync
                   </button>
                   <button
                     type="button"
                     onClick={() => handleDelete(repo.id)}
-                    className="rounded-lg border border-red-900/50 px-3 py-1.5 text-xs text-red-400 hover:border-red-500"
+                    className="rounded-full border border-ink-400 px-3 py-1 text-[11px] text-ink-500 transition hover:border-ink-600 hover:text-ink-800"
                   >
                     Delete
                   </button>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
+              </article>
+            ))
+          )}
+        </Slider>
+      </ScrollSection>
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg bg-slate-950/60 py-3">
-      <p className="text-2xl font-semibold text-brand-400">{value}</p>
-      <p className="text-xs text-slate-500">{label}</p>
+      <ScrollSection delay={150}>
+        <Slider title="Platform Capabilities" subtitle="Slide 02 — Features" itemWidth="min(88vw, 300px)">
+          {FEATURES.map((f) => (
+            <article key={f.title} className="panel panel-hover flex h-56 flex-col justify-between p-6">
+              <p className="font-mono text-[10px] uppercase tracking-widest text-ink-500">{f.title}</p>
+              <p className="font-heading text-lg leading-snug text-ink-800">{f.desc}</p>
+              <div className="h-px w-12 bg-ink-400" />
+            </article>
+          ))}
+        </Slider>
+      </ScrollSection>
+
+      <ScrollSection delay={200}>
+        <div className="grid gap-8 lg:grid-cols-2">
+          <section className="panel p-8">
+            <p className="section-label">Add Repository</p>
+            <h3 className="mt-2 font-heading text-2xl font-semibold text-ink-900">Connect a repo</h3>
+            <form onSubmit={handleCreate} className="mt-6 space-y-4">
+              <input
+                placeholder="Repository name"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="input-field"
+              />
+              <input
+                placeholder="https://github.com/org/repo"
+                required
+                type="url"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                className="input-field"
+              />
+              <button type="submit" disabled={creating} className="btn-primary w-full sm:w-auto">
+                {creating ? "Adding…" : "Add repository"}
+              </button>
+            </form>
+          </section>
+
+          <section className="panel p-8">
+            <p className="section-label">Risk Trend</p>
+            <h3 className="mt-2 font-heading text-2xl font-semibold text-ink-900">Score history</h3>
+            {risk && risk.trend.length > 0 ? (
+              <div className="mt-6 h-52">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={risk.trend}>
+                    <CartesianGrid stroke="#262626" strokeDasharray="4 4" vertical={false} />
+                    <XAxis dataKey="created_at" hide />
+                    <YAxis domain={[0, 100]} stroke="#525252" fontSize={10} tickLine={false} />
+                    <Tooltip
+                      contentStyle={{
+                        background: "#111",
+                        border: "1px solid #404040",
+                        borderRadius: 12,
+                        fontFamily: "IBM Plex Mono",
+                        fontSize: 11,
+                      }}
+                      labelStyle={{ color: "#737373" }}
+                      itemStyle={{ color: "#fff" }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="risk_score"
+                      stroke="#ffffff"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <p className="mt-8 font-mono text-sm text-ink-500">
+                Select a repo with predictions to see the trend line.
+              </p>
+            )}
+          </section>
+        </div>
+      </ScrollSection>
     </div>
   );
 }

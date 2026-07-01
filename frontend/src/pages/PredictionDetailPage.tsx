@@ -4,6 +4,9 @@ import { api } from "../api/client";
 import { AffectedFilesList } from "../components/AffectedFilesList";
 import { DependencyGraph } from "../components/DependencyGraph";
 import { RiskGauge } from "../components/RiskGauge";
+import { PageHero } from "../components/ui/PageHero";
+import { ScrollSection } from "../components/ui/ScrollSection";
+import { Slider } from "../components/ui/Slider";
 import { usePolling } from "../hooks/usePolling";
 
 export function PredictionDetailPage() {
@@ -22,14 +25,17 @@ export function PredictionDetailPage() {
   const { data: prediction, error, loading } = usePolling(fetcher, 2000, shouldPoll);
 
   if (loading && !prediction) {
-    return <p className="text-slate-500">Loading prediction…</p>;
+    return (
+      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4">
+        <div className="h-12 w-12 animate-spin rounded-full border-2 border-ink-400 border-t-ink-900" />
+        <p className="font-mono text-sm text-ink-500">Running prediction pipeline…</p>
+      </div>
+    );
   }
 
   if (error) {
     return (
-      <div className="rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-3 text-red-300">
-        {error}
-      </div>
+      <div className="panel px-6 py-4 font-mono text-sm text-ink-700">{error}</div>
     );
   }
 
@@ -40,105 +46,124 @@ export function PredictionDetailPage() {
   const topFiles = prediction.affected_files.slice(0, 5).map((f) => f.file_path);
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <Link to="/predict" className="text-sm text-brand-400 hover:underline">
-            ← Back to predict
-          </Link>
-          <h2 className="mt-2 text-2xl font-semibold text-white">Prediction result</h2>
-          <p className="mt-1 font-mono text-xs text-slate-500">{prediction.id}</p>
-        </div>
+    <div>
+      <PageHero
+        eyebrow="Prediction Result"
+        title={isPending ? "Analysis in progress…" : "Impact report ready."}
+        description={prediction.id}
+      >
         <span
-          className={`rounded-full px-3 py-1 text-xs font-medium uppercase ${
+          className={`inline-flex rounded-full border px-4 py-1.5 font-mono text-[11px] uppercase tracking-widest ${
             prediction.status === "completed"
-              ? "bg-green-950 text-green-400"
+              ? "border-ink-700 text-ink-900"
               : prediction.status === "failed"
-                ? "bg-red-950 text-red-400"
-                : "bg-amber-950 text-amber-400"
+                ? "border-ink-400 text-ink-500 line-through"
+                : "border-ink-500 text-ink-600"
           }`}
         >
           {prediction.status}
-          {isPending && " (polling…)"}
+          {isPending && " · polling"}
         </span>
-      </div>
+      </PageHero>
+
+      <Link to="/predict" className="mb-8 inline-block font-mono text-xs text-ink-500 hover:text-ink-800">
+        ← Back to predict
+      </Link>
 
       {prediction.error_message && (
-        <div className="rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-300">
+        <div className="mb-8 panel px-6 py-4 font-mono text-sm text-ink-600">
           {prediction.error_message}
         </div>
       )}
 
       {prediction.status === "completed" && (
         <>
-          <div className="grid gap-6 lg:grid-cols-[auto_1fr]">
-            <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
-              <RiskGauge score={riskScore} />
-              <div className="mt-4 space-y-2 text-center text-sm text-slate-400">
-                <p>
-                  Regression:{" "}
-                  <span className="text-white">
-                    {((prediction.regression_probability ?? 0) * 100).toFixed(0)}%
-                  </span>
-                </p>
-                <p>
-                  Confidence:{" "}
-                  <span className="text-white">
-                    {((prediction.confidence_score ?? 0) * 100).toFixed(0)}%
-                  </span>
-                </p>
-              </div>
-            </div>
-
-            {prediction.explanation && (
-              <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
-                <h3 className="font-medium text-white">Explanation</h3>
-                <div className="mt-4 space-y-3 text-sm text-slate-300">
-                  <p>
-                    <span className="text-slate-500">Root cause: </span>
-                    {prediction.explanation.root_cause}
-                  </p>
-                  <p>
-                    <span className="text-slate-500">Risk: </span>
-                    {prediction.explanation.risk_explanation}
-                  </p>
-                  <p>
-                    <span className="text-slate-500">Affected files: </span>
-                    {prediction.explanation.affected_files_explanation}
-                  </p>
+          <ScrollSection>
+            <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+              <div className="panel flex flex-col items-center p-8">
+                <RiskGauge score={riskScore} />
+                <div className="mt-6 w-full space-y-3 border-t border-ink-300 pt-6 text-center">
+                  <Metric
+                    label="Regression"
+                    value={`${((prediction.regression_probability ?? 0) * 100).toFixed(0)}%`}
+                  />
+                  <Metric
+                    label="Confidence"
+                    value={`${((prediction.confidence_score ?? 0) * 100).toFixed(0)}%`}
+                  />
                 </div>
               </div>
-            )}
-          </div>
 
-          <section>
-            <h3 className="mb-4 font-medium text-white">Affected files</h3>
+              {prediction.explanation && (
+                <div className="panel p-8">
+                  <p className="section-label">LLM Explanation</p>
+                  <div className="mt-6 space-y-6">
+                    <ExplainBlock title="Root cause" text={prediction.explanation.root_cause} />
+                    <ExplainBlock title="Risk" text={prediction.explanation.risk_explanation} />
+                    <ExplainBlock
+                      title="Affected files"
+                      text={prediction.explanation.affected_files_explanation}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </ScrollSection>
+
+          <ScrollSection delay={100}>
+            <p className="section-label mb-4">Affected Files</p>
             <AffectedFilesList files={prediction.affected_files} />
-          </section>
+          </ScrollSection>
 
           {prediction.suggested_reviewers.length > 0 && (
-            <section>
-              <h3 className="mb-4 font-medium text-white">Suggested reviewers</h3>
-              <div className="grid gap-3 sm:grid-cols-2">
+            <ScrollSection delay={150}>
+              <Slider
+                title="Suggested Reviewers"
+                subtitle="Slide — Reviewers"
+                itemWidth="min(88vw, 280px)"
+              >
                 {prediction.suggested_reviewers.map((r) => (
-                  <div
-                    key={r.user_id}
-                    className="rounded-lg border border-slate-800 bg-slate-900/60 p-4"
-                  >
-                    <p className="font-medium text-white">{r.username}</p>
-                    <p className="text-sm text-brand-400">Score {(r.score * 100).toFixed(0)}%</p>
-                    {r.rationale && <p className="mt-2 text-xs text-slate-400">{r.rationale}</p>}
-                  </div>
+                  <article key={r.user_id} className="panel panel-hover h-44 p-6">
+                    <p className="font-heading text-xl font-semibold text-ink-900">{r.username}</p>
+                    <p className="mt-2 font-heading text-3xl font-bold text-ink-900">
+                      {(r.score * 100).toFixed(0)}%
+                    </p>
+                    {r.rationale && (
+                      <p className="mt-3 line-clamp-2 text-xs leading-relaxed text-ink-500">
+                        {r.rationale}
+                      </p>
+                    )}
+                  </article>
                 ))}
-              </div>
-            </section>
+              </Slider>
+            </ScrollSection>
           )}
 
           {topFiles.length > 0 && (
-            <SubgraphSection repositoryId={prediction.repository_id} files={topFiles} />
+            <ScrollSection delay={200}>
+              <SubgraphSection repositoryId={prediction.repository_id} files={topFiles} />
+            </ScrollSection>
           )}
         </>
       )}
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="font-mono text-[10px] uppercase tracking-widest text-ink-500">{label}</p>
+      <p className="font-heading text-2xl font-bold text-ink-900">{value}</p>
+    </div>
+  );
+}
+
+function ExplainBlock({ title, text }: { title: string; text: string }) {
+  return (
+    <div>
+      <p className="font-mono text-[10px] uppercase tracking-widest text-ink-500">{title}</p>
+      <p className="mt-2 leading-relaxed text-ink-700">{text}</p>
     </div>
   );
 }
@@ -151,12 +176,17 @@ function SubgraphSection({ repositoryId, files }: { repositoryId: string; files:
   );
   const { data, loading } = usePolling(fetcher, 0, () => false);
 
-  if (loading) return <p className="text-sm text-slate-500">Loading subgraph…</p>;
+  if (loading) {
+    return <p className="font-mono text-sm text-ink-500">Loading impact subgraph…</p>;
+  }
   if (!data) return null;
 
   return (
     <section>
-      <h3 className="mb-4 font-medium text-white">Impact subgraph</h3>
+      <p className="section-label mb-2">Impact Subgraph</p>
+      <h3 className="mb-6 font-heading text-2xl font-semibold text-ink-900">
+        Dependency neighborhood
+      </h3>
       <DependencyGraph snapshot={data} />
     </section>
   );

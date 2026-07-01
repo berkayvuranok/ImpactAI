@@ -2,6 +2,8 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { Repository } from "../api/types";
+import { PageHero } from "../components/ui/PageHero";
+import { ScrollSection } from "../components/ui/ScrollSection";
 
 const SAMPLE_DIFF = `diff --git a/src/example.py b/src/example.py
 index abc123..def456 100644
@@ -16,6 +18,12 @@ index abc123..def456 100644
 +    return "bye"
 `;
 
+const STEPS = [
+  { n: "01", t: "Select repo", d: "Choose the target repository from your connected list." },
+  { n: "02", t: "Paste diff", d: "Unified diff format — the same output as git diff." },
+  { n: "03", t: "Analyze", d: "GNN + ML ensemble scores risk and ranks affected files." },
+];
+
 export function PredictPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -24,13 +32,12 @@ export function PredictPage() {
   const [diff, setDiff] = useState(SAMPLE_DIFF);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState(0);
 
   useEffect(() => {
     api.listRepositories().then((r) => {
       setRepos(r.items);
-      if (!repositoryId && r.items.length) {
-        setRepositoryId(r.items[0].id);
-      }
+      if (!repositoryId && r.items.length) setRepositoryId(r.items[0].id);
     });
   }, [repositoryId]);
 
@@ -53,58 +60,82 @@ export function PredictPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-semibold text-white">Predict impact</h2>
-        <p className="mt-1 text-slate-400">Submit a unified diff to analyze regression risk.</p>
-      </div>
+    <div>
+      <PageHero
+        eyebrow="Impact Analysis"
+        title="Submit a diff. Get risk intelligence."
+        description="The pipeline parses your change, walks the dependency graph, and returns a calibrated regression score with explanations."
+      />
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <label className="block">
-          <span className="text-sm text-slate-400">Repository</span>
-          <select
-            value={repositoryId}
-            onChange={(e) => setRepositoryId(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
-          >
-            <option value="">Select…</option>
-            {repos.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="block">
-          <span className="text-sm text-slate-400">Unified diff</span>
-          <textarea
-            rows={16}
-            required
-            value={diff}
-            onChange={(e) => setDiff(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-white"
-          />
-        </label>
-
-        {error && <p className="text-sm text-red-400">{error}</p>}
-
-        <div className="flex gap-3">
-          <button
-            type="submit"
-            disabled={loading}
-            className="rounded-lg bg-brand-600 px-5 py-2.5 font-medium text-white hover:bg-brand-500 disabled:opacity-50"
-          >
-            {loading ? "Submitting…" : "Run prediction"}
-          </button>
-          <Link
-            to="/"
-            className="rounded-lg border border-slate-700 px-5 py-2.5 text-slate-300 hover:border-slate-500"
-          >
-            Cancel
-          </Link>
+      <ScrollSection>
+        <div className="mb-10 flex gap-4 overflow-x-auto pb-2">
+          {STEPS.map((s, i) => (
+            <button
+              key={s.n}
+              type="button"
+              onClick={() => setStep(i)}
+              className={`panel shrink-0 px-6 py-4 text-left transition ${
+                step === i ? "border-ink-700 bg-ink-200/50" : "panel-hover"
+              }`}
+              style={{ minWidth: 220 }}
+            >
+              <span className="font-mono text-[10px] text-ink-400">{s.n}</span>
+              <p className="mt-1 font-heading font-semibold text-ink-900">{s.t}</p>
+              <p className="mt-1 text-xs text-ink-500">{s.d}</p>
+            </button>
+          ))}
         </div>
-      </form>
+
+        <form onSubmit={handleSubmit} className="panel p-8 md:p-10">
+          <div className={`space-y-6 ${step !== 0 ? "hidden md:block md:space-y-6" : ""}`}>
+            <label className="block">
+              <span className="section-label">Repository</span>
+              <select
+                value={repositoryId}
+                onChange={(e) => setRepositoryId(e.target.value)}
+                className="input-field mt-2"
+              >
+                <option value="">Select…</option>
+                {repos.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className={`mt-6 ${step === 1 || step === 2 ? "" : "hidden md:block"}`}>
+            <label className="block">
+              <span className="section-label">Unified Diff</span>
+              <textarea
+                rows={18}
+                required
+                value={diff}
+                onChange={(e) => setDiff(e.target.value)}
+                className="input-field mt-2 font-mono text-[13px] leading-relaxed"
+              />
+            </label>
+          </div>
+
+          {error && (
+            <p className="mt-4 font-mono text-sm text-ink-600">{error}</p>
+          )}
+
+          <div className="mt-8 flex flex-wrap items-center gap-4">
+            <button type="submit" disabled={loading} className="btn-primary">
+              {loading ? "Analyzing…" : "Run prediction →"}
+            </button>
+            <Link to="/" className="btn-ghost">
+              Cancel
+            </Link>
+            <div className="ml-auto hidden items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-ink-500 sm:flex">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-ink-700" />
+              Async pipeline · ~30s
+            </div>
+          </div>
+        </form>
+      </ScrollSection>
     </div>
   );
 }
