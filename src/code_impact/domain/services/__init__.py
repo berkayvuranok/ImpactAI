@@ -54,6 +54,7 @@ class ExplanationContext:
     similar_bugs: list[dict] = field(default_factory=list)
     suggested_reviewers: list[ReviewerSuggestion] = field(default_factory=list)
     fusion_metadata: dict = field(default_factory=dict)
+    xai_top_features: list[str] = field(default_factory=list)
 
 
 class IDiffParser(ABC):

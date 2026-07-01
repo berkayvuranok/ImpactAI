@@ -67,6 +67,10 @@ class Settings(BaseSettings):
     ensemble_classical_weight: float = 0.3
     ensemble_historical_weight: float = 0.2
 
+    # XAI
+    xai_enabled: bool = True
+    xai_use_shap_library: bool = False
+
     # Git
     git_storage_path: str = "/data/repos"
     graph_storage_path: str = "/data/graphs"

@@ -10,12 +10,14 @@ from code_impact.application.schemas import (
     PredictionHistoryResponse,
     PredictionResponse,
     RiskSummaryResponse,
+    XAIReportResponse,
 )
 from code_impact.application.services.prediction_mapper import prediction_to_response
 from code_impact.application.use_cases import GetPredictionUseCase, PredictImpactCommand, PredictImpactUseCase
 from code_impact.application.use_cases.prediction import (
     GetPredictionHistoryQuery,
     GetPredictionHistoryUseCase,
+    GetPredictionXAIUseCase,
     GetRiskSummaryUseCase,
 )
 from code_impact.domain.exceptions import EntityNotFoundError
@@ -24,6 +26,7 @@ from code_impact.infrastructure.queue.task_dispatcher import ITaskDispatcher
 from code_impact.presentation.api.dependencies import (
     get_current_user,
     get_get_prediction_history_use_case,
+    get_get_prediction_xai_use_case,
     get_get_prediction_use_case,
     get_get_risk_summary_use_case,
     get_predict_impact_use_case,
@@ -73,6 +76,19 @@ async def get_prediction(
     except EntityNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return prediction_to_response(prediction)
+
+
+@router.get("/prediction/{prediction_id}/xai", response_model=XAIReportResponse)
+async def get_prediction_xai(
+    prediction_id: UUID,
+    use_case: GetPredictionXAIUseCase = Depends(get_get_prediction_xai_use_case),
+) -> XAIReportResponse:
+    """SHAP feature attributions and GNN node attention for a completed prediction."""
+    try:
+        report = await use_case.execute(prediction_id)
+    except EntityNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return XAIReportResponse(**report)
 
 
 @router.get("/history/{repository_id}", response_model=PredictionHistoryResponse)

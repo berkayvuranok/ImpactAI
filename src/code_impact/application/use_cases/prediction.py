@@ -77,3 +77,17 @@ class GetRiskSummaryUseCase:
             "total_predictions": total,
             "trend": trend,
         }
+
+
+class GetPredictionXAIUseCase:
+    def __init__(self, prediction_repo: IPredictionRepository) -> None:
+        self._predictions = prediction_repo
+
+    async def execute(self, prediction_id: UUID) -> dict:
+        prediction = await self._predictions.get_by_id(prediction_id)
+        if not prediction:
+            raise EntityNotFoundError("Prediction", prediction_id)
+        xai = prediction.output_payload.get("xai")
+        if not xai:
+            raise EntityNotFoundError("XAI report", prediction_id)
+        return {"prediction_id": prediction_id, **xai}

@@ -28,6 +28,7 @@ from code_impact.application.use_cases import (
 )
 from code_impact.application.use_cases.prediction import (
     GetPredictionHistoryUseCase,
+    GetPredictionXAIUseCase,
     GetRiskSummaryUseCase,
     RunPredictionPipelineUseCase,
 )
@@ -69,6 +70,7 @@ from code_impact.infrastructure.recommendation.reviewer_recommender import Revie
 from code_impact.infrastructure.search.historical_search_service import HistoricalSearchService
 from code_impact.infrastructure.llm.factory import build_explanation_generator
 from code_impact.ml.risk.ensemble_fusion import EnsembleFusionService
+from code_impact.ml.xai import XAIService
 
 # System user for bootstrap and auth-disabled mode
 SYSTEM_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
@@ -253,6 +255,8 @@ def get_prediction_pipeline_service(
         reviewer_recommender=ReviewerRecommender(SqlAlchemyReviewerProfileRepository(session)),
         embedding_service=embedding_service,
         explanation_generator=build_explanation_generator(settings),
+        xai_service=XAIService(use_shap_library=settings.xai_use_shap_library),
+        xai_enabled=settings.xai_enabled,
         ensemble=EnsembleFusionService(
             gnn_weight=settings.ensemble_gnn_weight,
             classical_weight=settings.ensemble_classical_weight,
@@ -286,6 +290,12 @@ def get_get_risk_summary_use_case(
     session: AsyncSession = Depends(get_session),
 ) -> GetRiskSummaryUseCase:
     return GetRiskSummaryUseCase(SqlAlchemyPredictionRepository(session))
+
+
+def get_get_prediction_xai_use_case(
+    session: AsyncSession = Depends(get_session),
+) -> GetPredictionXAIUseCase:
+    return GetPredictionXAIUseCase(SqlAlchemyPredictionRepository(session))
 
 
 def get_run_prediction_pipeline_use_case(

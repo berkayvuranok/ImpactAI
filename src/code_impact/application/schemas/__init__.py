@@ -194,6 +194,40 @@ class PredictionHistoryResponse(BaseModel):
     offset: int
 
 
+# ── XAI ───────────────────────────────────────────────────────────────────────
+
+class FeatureAttributionResponse(BaseModel):
+    feature: str
+    label: str
+    value: float
+    shap_value: float
+
+
+class NodeAttentionResponse(BaseModel):
+    node_id: str
+    name: str
+    file_path: str | None
+    attention_score: float
+    rank: int
+
+
+class EdgeAttentionResponse(BaseModel):
+    source_id: str
+    target_id: str
+    attention_score: float
+
+
+class XAIReportResponse(BaseModel):
+    prediction_id: UUID
+    shap_base_value: float
+    shap_output_value: float
+    feature_attributions: list[FeatureAttributionResponse]
+    node_attentions: list[NodeAttentionResponse]
+    edge_attentions: list[EdgeAttentionResponse] = []
+    method: str
+    metadata: dict = {}
+
+
 # ── Health ────────────────────────────────────────────────────────────────────
 
 class HealthResponse(BaseModel):

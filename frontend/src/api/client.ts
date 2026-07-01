@@ -8,6 +8,7 @@ import type {
   Repository,
   RepositoryList,
   RiskSummary,
+  XAIReport,
 } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
@@ -90,6 +91,8 @@ export const api = {
     }),
 
   getPrediction: (id: string) => request<Prediction>(`/prediction/${id}`),
+
+  getPredictionXAI: (id: string) => request<XAIReport>(`/prediction/${id}/xai`),
 
   getHistory: (repositoryId: string) =>
     request<PredictionHistory>(`/history/${repositoryId}?limit=20`),

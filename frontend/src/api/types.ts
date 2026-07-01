@@ -120,6 +120,32 @@ export interface PredictionHistory {
   offset: number;
 }
 
+export interface XAIReport {
+  prediction_id: string;
+  shap_base_value: number;
+  shap_output_value: number;
+  feature_attributions: {
+    feature: string;
+    label: string;
+    value: number;
+    shap_value: number;
+  }[];
+  node_attentions: {
+    node_id: string;
+    name: string;
+    file_path: string | null;
+    attention_score: number;
+    rank: number;
+  }[];
+  edge_attentions: {
+    source_id: string;
+    target_id: string;
+    attention_score: number;
+  }[];
+  method: string;
+  metadata: Record<string, unknown>;
+}
+
 export interface HealthResponse {
   status: string;
   version: string;

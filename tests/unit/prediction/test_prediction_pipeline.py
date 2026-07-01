@@ -94,3 +94,5 @@ async def test_prediction_pipeline_completes():
     assert result.confidence_score is not None
     assert result.explanation is not None
     assert result.explanation.root_cause
+    assert "xai" in result.output_payload
+    assert result.output_payload["xai"]["feature_attributions"]

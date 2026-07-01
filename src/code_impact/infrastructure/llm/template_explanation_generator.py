@@ -38,6 +38,9 @@ class TemplateExplanationGenerator(IExplanationGenerator):
             f"GNN contributed {context.gnn_result.risk_score.value:.1f}, "
             f"historical signal: {hist_note}."
         )
+        if context.xai_top_features:
+            shap_note = ", ".join(context.xai_top_features)
+            risk_explanation += f" Top SHAP drivers: {shap_note}."
 
         affected_files_explanation = (
             f"Top affected files by break probability: {file_list}. "

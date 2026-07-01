@@ -19,6 +19,7 @@ from code_impact.domain.services import (
 from code_impact.infrastructure.analysis.diff_analysis_service import DiffAnalysisService
 from code_impact.ml.risk.classical_risk_classifier import ClassicalRiskClassifier
 from code_impact.ml.risk.ensemble_fusion import EnsembleFusionService
+from code_impact.ml.xai import XAIService
 
 
 class PredictionPipelineService:
@@ -36,6 +37,9 @@ class PredictionPipelineService:
         explanation_generator: IExplanationGenerator,
         classical_classifier: ClassicalRiskClassifier | None = None,
         ensemble: EnsembleFusionService | None = None,
+        xai_service: XAIService | None = None,
+        *,
+        xai_enabled: bool = True,
     ) -> None:
         self._predictions = prediction_repo
         self._graphs = graph_repo
@@ -47,6 +51,7 @@ class PredictionPipelineService:
         self._explainer = explanation_generator
         self._classical = classical_classifier or ClassicalRiskClassifier()
         self._ensemble = ensemble or EnsembleFusionService()
+        self._xai = (xai_service or XAIService()) if xai_enabled else None
 
     async def run(self, prediction_id: UUID) -> Prediction:
         prediction = await self._predictions.get_by_id(prediction_id)
@@ -85,6 +90,21 @@ class PredictionPipelineService:
                 fused.affected_files,
             )
 
+            xai_report = None
+            top_shap: list[str] = []
+            if self._xai is not None:
+                xai_report = self._xai.explain(
+                    diff_result,
+                    gnn_result,
+                    graph_snapshot=graph,
+                    features=classical_result.features,
+                )
+                top_shap = [
+                    f.label or f.feature
+                    for f in xai_report.feature_attributions[:3]
+                    if abs(f.shap_value) > 0.01
+                ]
+
             explanation = await self._explainer.generate(
                 ExplanationContext(
                     diff_result=diff_result,
@@ -100,8 +120,22 @@ class PredictionPipelineService:
                         "fusion_weights": fused.fusion_weights,
                         "component_scores": fused.component_scores,
                     },
+                    xai_top_features=top_shap,
                 )
             )
+
+            if explanation.attention_summary is None:
+                explanation.attention_summary = {}
+            if xai_report is not None:
+                explanation.attention_summary.update(
+                    {
+                        "xai_method": xai_report.method,
+                        "top_shap_features": top_shap,
+                        "top_attention_nodes": [
+                            n.name for n in xai_report.node_attentions[:5]
+                        ],
+                    }
+                )
 
             prediction.mark_completed(
                 risk_score=fused.risk_score,
@@ -119,6 +153,7 @@ class PredictionPipelineService:
                     "explanation_generator": explanation.attention_summary.get(
                         "generator", "unknown"
                     ),
+                    **({"xai": xai_report.to_dict()} if xai_report else {}),
                 },
             )
         except Exception as exc:

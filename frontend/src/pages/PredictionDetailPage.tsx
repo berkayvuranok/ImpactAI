@@ -1,9 +1,12 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
+import type { XAIReport } from "../api/types";
 import { AffectedFilesList } from "../components/AffectedFilesList";
 import { DependencyGraph } from "../components/DependencyGraph";
+import { NodeAttentionSlider } from "../components/NodeAttentionSlider";
 import { RiskGauge } from "../components/RiskGauge";
+import { ShapChart } from "../components/ShapChart";
 import { PageHero } from "../components/ui/PageHero";
 import { ScrollSection } from "../components/ui/ScrollSection";
 import { Slider } from "../components/ui/Slider";
@@ -23,6 +26,12 @@ export function PredictionDetailPage() {
   );
 
   const { data: prediction, error, loading } = usePolling(fetcher, 2000, shouldPoll);
+  const [xai, setXai] = useState<XAIReport | null>(null);
+
+  useEffect(() => {
+    if (!id || prediction?.status !== "completed") return;
+    api.getPredictionXAI(id).then(setXai).catch(() => setXai(null));
+  }, [id, prediction?.status]);
 
   if (loading && !prediction) {
     return (
@@ -114,6 +123,28 @@ export function PredictionDetailPage() {
             <p className="section-label mb-4">Affected Files</p>
             <AffectedFilesList files={prediction.affected_files} />
           </ScrollSection>
+
+          {xai && (
+            <ScrollSection delay={120}>
+              <div className="grid gap-8 lg:grid-cols-2">
+                <section className="panel p-8">
+                  <p className="section-label">SHAP Explainability</p>
+                  <h3 className="mt-2 font-heading text-2xl font-semibold text-ink-900">
+                    Feature drivers
+                  </h3>
+                  <p className="mt-2 font-mono text-[11px] text-ink-500">
+                    Method: {xai.method} · logit {xai.shap_output_value.toFixed(1)}
+                  </p>
+                  <div className="mt-6">
+                    <ShapChart report={xai} />
+                  </div>
+                </section>
+                <section>
+                  <NodeAttentionSlider report={xai} />
+                </section>
+              </div>
+            </ScrollSection>
+          )}
 
           {prediction.suggested_reviewers.length > 0 && (
             <ScrollSection delay={150}>
