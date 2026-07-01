@@ -27,12 +27,16 @@ from code_impact.presentation.api.app import create_app
 from code_impact.presentation.api.dependencies import (
     get_analyze_diff_use_case,
     get_create_repository_use_case,
+    get_current_user,
     get_get_prediction_use_case,
     get_get_repository_use_case,
     get_predict_impact_use_case,
     get_sync_repository_use_case,
     get_task_dispatcher,
 )
+from code_impact.domain.entities import User
+from code_impact.domain.value_objects.enums import UserRole
+from code_impact.presentation.api.dependencies import SYSTEM_USER_ID, SYSTEM_USER_EMAIL
 from support.in_memory_graph_repository import InMemoryGraphRepository
 from support.in_memory_prediction_repositories import (
     InMemoryPredictionRepository,
@@ -94,6 +98,7 @@ def test_settings() -> Settings:
         redis_url="redis://localhost:6379/0",
         celery_broker_url="redis://localhost:6379/1",
         celery_result_backend="redis://localhost:6379/2",
+        auth_enabled=False,
         embedding_backend="mock",
         debug=True,
     )
@@ -132,6 +137,18 @@ def app(test_settings: Settings, memory_repos, fake_dispatcher):
         explanation_generator=TemplateExplanationGenerator(),
     )
     fake_dispatcher.pipeline = RunPredictionPipelineUseCase(pipeline_service)
+
+    system_user = User(
+        id=SYSTEM_USER_ID,
+        email=SYSTEM_USER_EMAIL,
+        username="system",
+        hashed_password="!",
+        role=UserRole.ADMIN,
+    )
+    async def _system_user() -> User:
+        return system_user
+
+    application.dependency_overrides[get_current_user] = _system_user
 
     application.dependency_overrides[get_create_repository_use_case] = (
         lambda: CreateRepositoryUseCase(memory_repos["repository"])

@@ -95,6 +95,22 @@ class SqlAlchemyRepositoryRepository(IRepositoryRepository):
         await self._session.flush()
         return mappers.repository_to_domain(model)
 
+    async def delete(self, repository_id: UUID) -> None:
+        model = await self._session.get(RepositoryModel, repository_id)
+        if model:
+            await self._session.delete(model)
+            await self._session.flush()
+
+    async def find_by_normalized_url(self, url: str) -> Repository | None:
+        from code_impact.application.services.webhook_service import normalize_repo_url
+
+        target = normalize_repo_url(url)
+        result = await self._session.execute(select(RepositoryModel))
+        for model in result.scalars():
+            if normalize_repo_url(model.url) == target:
+                return mappers.repository_to_domain(model)
+        return None
+
 
 class SqlAlchemyCommitRepository(ICommitRepository):
     def __init__(self, session: AsyncSession) -> None:

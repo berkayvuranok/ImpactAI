@@ -22,6 +22,14 @@ class AuthorizationError(DomainError):
     pass
 
 
+class AuthenticationError(DomainError):
+    pass
+
+
+class ConflictError(DomainError):
+    pass
+
+
 class RepositorySyncError(DomainError):
     pass
 

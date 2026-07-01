@@ -47,6 +47,18 @@ class InMemoryRepositoryRepository(IRepositoryRepository):
         self._store[repository.id] = repository
         return repository
 
+    async def delete(self, repository_id: UUID) -> None:
+        self._store.pop(repository_id, None)
+
+    async def find_by_normalized_url(self, url: str) -> Repository | None:
+        from code_impact.application.services.webhook_service import normalize_repo_url
+
+        target = normalize_repo_url(url)
+        for repo in self._store.values():
+            if normalize_repo_url(repo.url) == target:
+                return repo
+        return None
+
 
 class InMemoryCommitRepository(ICommitRepository):
     def __init__(self) -> None:

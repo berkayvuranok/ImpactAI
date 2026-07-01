@@ -3,13 +3,21 @@
 from collections.abc import AsyncGenerator
 from uuid import UUID
 
-from fastapi import Depends, Request
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from code_impact.application.services.embedding_index_service import EmbeddingIndexService
 from code_impact.application.services.graph_build_service import GraphBuildService
-from code_impact.application.services.repository_sync_service import RepositorySyncService
 from code_impact.application.services.prediction_pipeline_service import PredictionPipelineService
+from code_impact.application.services.repository_sync_service import RepositorySyncService
+from code_impact.application.services.webhook_handler_service import WebhookHandlerService
+from code_impact.application.use_cases.auth import (
+    LoginUseCase,
+    RefreshTokenUseCase,
+    RegisterUserUseCase,
+)
+from code_impact.application.use_cases.repository import DeleteRepositoryUseCase, ListRepositoriesUseCase
 from code_impact.application.use_cases import (
     AnalyzeDiffUseCase,
     CreateRepositoryUseCase,
@@ -29,10 +37,13 @@ from code_impact.application.use_cases.graph import (
     GetGraphUseCase,
     GetSubgraphUseCase,
 )
-from code_impact.domain.services import IEmbeddingService
+from code_impact.domain.entities import User
+from code_impact.domain.value_objects.enums import UserRole
 from code_impact.domain.services.git_service import IGitService
 from code_impact.domain.services.vector_store import IVectorStore
-from code_impact.infrastructure.analysis.diff_analysis_service import DiffAnalysisService
+from code_impact.domain.services import IEmbeddingService
+from code_impact.infrastructure.auth.jwt_service import JWTService
+from code_impact.infrastructure.auth.rate_limiter import RateLimiter
 from code_impact.domain.services import IGNNPredictor
 from code_impact.infrastructure.config.settings import Settings
 from code_impact.infrastructure.embeddings.mock_embedding_service import MockEmbeddingService
@@ -59,8 +70,11 @@ from code_impact.infrastructure.search.historical_search_service import Historic
 from code_impact.infrastructure.llm.factory import build_explanation_generator
 from code_impact.ml.risk.ensemble_fusion import EnsembleFusionService
 
-# System user used until auth is implemented (Step 8+)
+# System user for bootstrap and auth-disabled mode
 SYSTEM_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
+SYSTEM_USER_EMAIL = "system@code-impact.local"
+
+_bearer = HTTPBearer(auto_error=False)
 
 
 async def get_session(request: Request) -> AsyncGenerator[AsyncSession, None]:
@@ -278,3 +292,91 @@ def get_run_prediction_pipeline_use_case(
     pipeline: PredictionPipelineService = Depends(get_prediction_pipeline_service),
 ) -> RunPredictionPipelineUseCase:
     return RunPredictionPipelineUseCase(pipeline)
+
+
+def get_jwt_service(settings: Settings = Depends(get_settings)) -> JWTService:
+    return JWTService(settings)
+
+
+def get_rate_limiter(settings: Settings = Depends(get_settings)) -> RateLimiter:
+    return RateLimiter(settings)
+
+
+def get_register_user_use_case(
+    session: AsyncSession = Depends(get_session),
+    jwt_service: JWTService = Depends(get_jwt_service),
+) -> RegisterUserUseCase:
+    return RegisterUserUseCase(SqlAlchemyUserRepository(session), jwt_service)
+
+
+def get_login_use_case(
+    session: AsyncSession = Depends(get_session),
+    jwt_service: JWTService = Depends(get_jwt_service),
+) -> LoginUseCase:
+    return LoginUseCase(SqlAlchemyUserRepository(session), jwt_service)
+
+
+def get_refresh_token_use_case(
+    session: AsyncSession = Depends(get_session),
+    jwt_service: JWTService = Depends(get_jwt_service),
+) -> RefreshTokenUseCase:
+    return RefreshTokenUseCase(SqlAlchemyUserRepository(session), jwt_service)
+
+
+def get_list_repositories_use_case(
+    session: AsyncSession = Depends(get_session),
+) -> ListRepositoriesUseCase:
+    return ListRepositoriesUseCase(SqlAlchemyRepositoryRepository(session))
+
+
+def get_delete_repository_use_case(
+    session: AsyncSession = Depends(get_session),
+) -> DeleteRepositoryUseCase:
+    return DeleteRepositoryUseCase(SqlAlchemyRepositoryRepository(session))
+
+
+def get_webhook_handler(
+    session: AsyncSession = Depends(get_session),
+    dispatcher: ITaskDispatcher = Depends(get_task_dispatcher),
+) -> WebhookHandlerService:
+    return WebhookHandlerService(
+        repository_repo=SqlAlchemyRepositoryRepository(session),
+        predict_use_case=PredictImpactUseCase(
+            SqlAlchemyPredictionRepository(session),
+            SqlAlchemyRepositoryRepository(session),
+        ),
+        task_dispatcher=dispatcher,
+    )
+
+
+async def get_current_user(
+    settings: Settings = Depends(get_settings),
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    session: AsyncSession = Depends(get_session),
+) -> User:
+    if not settings.auth_enabled:
+        user_repo = SqlAlchemyUserRepository(session)
+        user = await user_repo.get_by_id(SYSTEM_USER_ID)
+        if user:
+            return user
+        return User(
+            id=SYSTEM_USER_ID,
+            email=SYSTEM_USER_EMAIL,
+            username="system",
+            hashed_password="!",
+            role=UserRole.ADMIN,
+        )
+
+    if not credentials:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
+    jwt_service = JWTService(settings)
+    try:
+        payload = jwt_service.decode_token(credentials.credentials, expected_type="access")
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+
+    user = await SqlAlchemyUserRepository(session).get_by_id(UUID(payload["sub"]))
+    if not user or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    return user

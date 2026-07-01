@@ -19,6 +19,41 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class RegisterRequest(BaseModel):
+    email: str = Field(..., min_length=3)
+    username: str = Field(..., min_length=2, max_length=100)
+    password: str = Field(..., min_length=8)
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+class UserResponse(BaseModel):
+    id: UUID
+    email: str
+    username: str
+    role: str
+
+
+class AuthResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    user: UserResponse
+
+
+class RepositoryListResponse(BaseModel):
+    items: list[RepositoryResponse]
+    total: int
+
+
+class WebhookAcceptedResponse(BaseModel):
+    prediction_id: UUID | None = None
+    status: str = "queued"
+    message: str
+
+
 # ── Repository ────────────────────────────────────────────────────────────────
 
 class CreateRepositoryRequest(BaseModel):

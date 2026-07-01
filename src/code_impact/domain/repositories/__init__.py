@@ -46,6 +46,12 @@ class IRepositoryRepository(ABC):
     @abstractmethod
     async def update(self, repository: Repository) -> Repository: ...
 
+    @abstractmethod
+    async def delete(self, repository_id: UUID) -> None: ...
+
+    @abstractmethod
+    async def find_by_normalized_url(self, url: str) -> Repository | None: ...
+
 
 class ICommitRepository(ABC):
     @abstractmethod

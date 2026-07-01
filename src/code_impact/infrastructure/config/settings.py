@@ -80,6 +80,13 @@ class Settings(BaseSettings):
     prometheus_enabled: bool = True
     log_level: str = "INFO"
 
+    # Auth
+    auth_enabled: bool = False
+
+    # Webhooks
+    github_webhook_secret: str = ""
+    gitlab_webhook_secret: str = ""
+
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"

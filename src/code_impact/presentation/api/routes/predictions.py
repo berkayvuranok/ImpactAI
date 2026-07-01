@@ -19,9 +19,10 @@ from code_impact.application.use_cases.prediction import (
     GetRiskSummaryUseCase,
 )
 from code_impact.domain.exceptions import EntityNotFoundError
+from code_impact.domain.entities import User
 from code_impact.infrastructure.queue.task_dispatcher import ITaskDispatcher
 from code_impact.presentation.api.dependencies import (
-    SYSTEM_USER_ID,
+    get_current_user,
     get_get_prediction_history_use_case,
     get_get_prediction_use_case,
     get_get_risk_summary_use_case,
@@ -35,6 +36,7 @@ router = APIRouter()
 @router.post("/predict", response_model=PredictAcceptedResponse, status_code=status.HTTP_202_ACCEPTED)
 async def predict_impact(
     body: PredictRequest,
+    current_user: User = Depends(get_current_user),
     use_case: PredictImpactUseCase = Depends(get_predict_impact_use_case),
     dispatcher: ITaskDispatcher = Depends(get_task_dispatcher),
 ) -> PredictAcceptedResponse:
@@ -43,7 +45,7 @@ async def predict_impact(
         prediction = await use_case.execute(
             PredictImpactCommand(
                 repository_id=body.repository_id,
-                created_by=SYSTEM_USER_ID,
+                created_by=current_user.id,
                 diff=body.diff,
                 base_sha=body.base_sha,
                 head_sha=body.head_sha,
